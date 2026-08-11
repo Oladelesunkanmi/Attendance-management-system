@@ -112,8 +112,10 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
     coalesce(new.raw_user_meta_data->>'role', 'student'),
-    new.raw_user_meta_data->>'matric_number'
+    nullif(trim(new.raw_user_meta_data->>'matric_number'), '')
   );
+  return new;
+exception when others then
   return new;
 end;
 $$;

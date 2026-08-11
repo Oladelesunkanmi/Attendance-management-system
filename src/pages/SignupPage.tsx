@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Card, ErrorText, Input, Label, Shell } from '../components/ui';
 
 export default function SignupPage() {
-  const { signUp } = useAuth();
+  const { user, signUp } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -12,6 +13,12 @@ export default function SignupPage() {
   const [role, setRole] = useState<'student' | 'lecturer'>('student');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +32,7 @@ export default function SignupPage() {
         role,
         matricNumber: role === 'student' ? matricNumber : undefined,
       });
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed');
     } finally {

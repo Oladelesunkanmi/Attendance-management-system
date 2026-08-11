@@ -18,7 +18,7 @@ major_version = 15
 enabled = true
 port = 54323
 
-[inbucket]
+[local_smtp]
 enabled = true
 port = 54324
 
@@ -39,5 +39,14 @@ enable_confirmations = false
 [edge_runtime]
 enabled = true
 
-[functions]
+[functions.issue-qr-token]
+verify_jwt = false
+
+[functions.verify-checkin]
+verify_jwt = false
+
+[functions.webauthn-register]
+verify_jwt = false
+
+[functions.webauthn-authenticate]
 verify_jwt = false

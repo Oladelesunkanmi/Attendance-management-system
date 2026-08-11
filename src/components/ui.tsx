@@ -16,9 +16,9 @@ export function Shell({ title, subtitle, children }: ShellProps) {
   );
 }
 
-export function Card({ children }: { children: React.ReactNode }) {
+export function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-lg">
+    <div className={`rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-lg ${className}`}>
       {children}
     </div>
   );

@@ -10,13 +10,28 @@ import SuperviseEnrolmentPage from './pages/lecturer/SuperviseEnrolmentPage';
 import CheckInPage from './pages/student/CheckInPage';
 import EnrolWebAuthnPage from './pages/student/EnrolWebAuthnPage';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+function ProtectedRoute({
+  children,
+  allowedRole,
+}: {
+  children: React.ReactNode;
+  allowedRole?: 'student' | 'lecturer';
+}) {
+  const { user, profile, loading } = useAuth();
+
   if (loading) {
     return <div className="p-8 text-center text-slate-400">Loading…</div>;
   }
-  if (!user) return <Navigate to="/login" replace />;
-  return children;
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRole && profile && profile.role !== allowedRole) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
 }
 
 export default function App() {
@@ -32,12 +47,12 @@ export default function App() {
           </ProtectedRoute>
         )}
       />
-      <Route path="/lecturer/courses" element={<ProtectedRoute><CoursesPage /></ProtectedRoute>} />
-      <Route path="/lecturer/venues" element={<ProtectedRoute><VenuesPage /></ProtectedRoute>} />
-      <Route path="/lecturer/sessions" element={<ProtectedRoute><SessionsPage /></ProtectedRoute>} />
-      <Route path="/lecturer/enrolment" element={<ProtectedRoute><SuperviseEnrolmentPage /></ProtectedRoute>} />
-      <Route path="/student/check-in" element={<ProtectedRoute><CheckInPage /></ProtectedRoute>} />
-      <Route path="/student/enrol" element={<ProtectedRoute><EnrolWebAuthnPage /></ProtectedRoute>} />
+      <Route path="/lecturer/courses" element={<ProtectedRoute allowedRole="lecturer"><CoursesPage /></ProtectedRoute>} />
+      <Route path="/lecturer/venues" element={<ProtectedRoute allowedRole="lecturer"><VenuesPage /></ProtectedRoute>} />
+      <Route path="/lecturer/sessions" element={<ProtectedRoute allowedRole="lecturer"><SessionsPage /></ProtectedRoute>} />
+      <Route path="/lecturer/enrolment" element={<ProtectedRoute allowedRole="lecturer"><SuperviseEnrolmentPage /></ProtectedRoute>} />
+      <Route path="/student/check-in" element={<ProtectedRoute allowedRole="student"><CheckInPage /></ProtectedRoute>} />
+      <Route path="/student/enrol" element={<ProtectedRoute allowedRole="student"><EnrolWebAuthnPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

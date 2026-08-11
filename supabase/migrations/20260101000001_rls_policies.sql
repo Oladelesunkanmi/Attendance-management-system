@@ -19,9 +19,13 @@ stable
 security definer
 set search_path = public
 as $$
-  select exists (
-    select 1 from profiles
-    where id = auth.uid() and role = 'lecturer'
+  select coalesce(
+    (auth.jwt() -> 'user_metadata' ->> 'role') = 'lecturer',
+    exists (
+      select 1 from profiles
+      where id = auth.uid() and role = 'lecturer'
+    ),
+    false
   );
 $$;
 

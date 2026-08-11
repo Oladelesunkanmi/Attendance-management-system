@@ -1,21 +1,24 @@
 # QR + Geofence + WebAuthn Attendance System
 
-React PWA frontend with Supabase Postgres, Auth, Row Level Security, and Edge Functions.
+React PWA frontend with Supabase Postgres, Auth, Row Level Security, Edge Functions, and Service Worker Offline Sync.
 
 ## Stack
 
-- **Frontend:** React (Vite) + Tailwind CSS + PWA
+- **Frontend:** React (Vite) + Tailwind CSS + PWA (Custom Service Worker + IndexedDB)
 - **Backend:** Supabase Edge Functions (Deno/TypeScript)
 - **Database:** Supabase Postgres with RLS
 - **Hosting:** Vercel (frontend) + Supabase (backend/DB)
 
-## Project structure
+## Project Structure
 
 ```
 attendance-system/
 ├── src/                         # React PWA
+│   ├── lib/                     # Supabase client, Geo helpers, IDB queue
+│   ├── pages/                   # Student & Lecturer pages
+│   └── sw.ts                    # Service Worker (Offline sync + JWT TTL check)
 ├── supabase/
-│   ├── migrations/              # SQL schema + RLS
+│   ├── migrations/              # SQL schema + RLS policies
 │   └── functions/               # Edge Functions
 │       ├── issue-qr-token/
 │       ├── verify-checkin/
@@ -23,117 +26,137 @@ attendance-system/
 │       └── webauthn-authenticate/
 ```
 
-## 1. Create Supabase project
+---
 
-1. Go to [supabase.com](https://supabase.com) and create a free project.
-2. Copy your **Project URL** and **anon key** from Settings → API.
+## How to Start the System
 
-## 2. Run database migrations
+### Prerequisites
 
-Install the [Supabase CLI](https://supabase.com/docs/guides/cli), then:
+- Node.js (v18+) & `npm`
+- [Supabase CLI](https://supabase.com/docs/guides/cli) installed (for local backend development/deployment)
+
+### 1. Local Quick Start (Development Mode)
+
+1. **Install Dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Set Up Environment Variables:**
+   Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   Fill in your Supabase details:
+   ```env
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+3. **Start Development Server:**
+   ```bash
+   npm run dev
+   ```
+   Open `http://localhost:5173` in your browser.
+
+---
+
+### 2. Testing Offline Sync & PWA Service Worker
+
+To test Service Worker features (Offline Queueing & Background Sync):
 
 ```bash
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
+npm run build
+npm run preview
 ```
+Open `http://localhost:4173` (or the URL shown by Vite preview).
 
-Or paste the SQL files manually in the Supabase SQL editor (in order):
+---
 
-1. `supabase/migrations/20260101000000_initial_schema.sql`
-2. `supabase/migrations/20260101000001_rls_policies.sql`
-3. `supabase/migrations/20260101000002_webauthn_challenges.sql`
+### 3. Backend & Supabase Setup
 
-## 3. Configure Edge Function secrets
+#### Option A: Cloud Supabase Project
 
-In Supabase → Edge Functions → Secrets, set:
+1. **Create Supabase Project:** Go to [supabase.com](https://supabase.com) and create a project.
+2. **Apply Migrations:** Run the migration files in order via the Supabase SQL Editor:
+   - `supabase/migrations/20260101000000_initial_schema.sql`
+   - `supabase/migrations/20260101000001_rls_policies.sql`
+   - `supabase/migrations/20260101000002_webauthn_challenges.sql`
 
-| Secret | Example |
+3. **Set Edge Function Secrets (Supabase Dashboard → Functions → Secrets):**
+   - `SUPABASE_URL`: `https://your-project.supabase.co`
+   - `SUPABASE_ANON_KEY`: `your-anon-key`
+   - `SUPABASE_SERVICE_ROLE_KEY`: `your-service-role-key`
+   - `QR_JWT_SECRET`: `your-random-jwt-secret`
+   - `WEBAUTHN_RP_ID`: `localhost` (or `your-app.vercel.app` for production)
+   - `WEBAUTHN_ORIGIN`: `http://localhost:5173` (or `https://your-app.vercel.app`)
+
+4. **Deploy Edge Functions:**
+   ```bash
+   supabase login
+   supabase link --project-ref your-project-ref
+   supabase functions deploy issue-qr-token
+   supabase functions deploy verify-checkin
+   supabase functions deploy webauthn-register
+   supabase functions deploy webauthn-authenticate
+   ```
+
+#### Option B: Local Supabase Stack
+
+1. **Start Local Supabase:**
+   ```bash
+   supabase start
+   ```
+2. **Serve Edge Functions Locally:**
+   ```bash
+   supabase functions serve --env-file supabase/functions/.env.local
+   ```
+
+---
+
+## Usage Flow
+
+### Lecturer Flow
+
+1. Sign up / Log in as **Lecturer**.
+2. Navigate to **Courses** and add a course.
+3. Navigate to **Venues** and set classroom coordinates (or use "Use current GPS").
+4. Navigate to **Sessions** and start a new session (Choose verification mode: `qr_only`, `qr_geofence`, or `full`).
+5. Display the auto-rotating QR code on screen and view live check-ins via Supabase Realtime.
+6. Export session attendance as CSV.
+
+### Student Flow
+
+1. Sign up / Log in as **Student** (with matriculation number).
+2. Complete **WebAuthn Enrolment** (bind physical device / biometrics).
+3. At class, go to **Check In**:
+   - Scan the rotating session QR code.
+   - Grant GPS location access.
+   - Verify identity using biometric prompt (WebAuthn).
+   - If offline or on poor network, check-in is queued locally in IndexedDB and automatically synced when reconnected.
+
+---
+
+## Verification Modes
+
+Each session supports selectable verification modes:
+
+| Mode | Verification Checks |
 |---|---|
-| `SUPABASE_URL` | `https://xxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | your anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | service role key (never expose to frontend) |
-| `QR_JWT_SECRET` | long random string |
-| `WEBAUTHN_RP_ID` | `your-app.vercel.app` (no protocol) |
-| `WEBAUTHN_ORIGIN` | `https://your-app.vercel.app` |
-| `WEBAUTHN_RP_NAME` | `Attendance System` |
+| `qr_only` | Rotating QR Token only (30s TTL) |
+| `qr_geofence` | QR Token + GPS Geofence Haversine Check |
+| `full` | QR Token + GPS Geofence + WebAuthn Biometric Verification |
 
-Deploy functions:
+---
 
-```bash
-supabase functions deploy issue-qr-token
-supabase functions deploy verify-checkin
-supabase functions deploy webauthn-register
-supabase functions deploy webauthn-authenticate
-```
+## Completed Build Plan Progress
 
-## 4. Frontend setup
-
-```bash
-cp .env.example .env
-# Edit .env with your Supabase URL and anon key
-
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173`.
-
-## 5. Deploy to Vercel (required for phone WebAuthn testing)
-
-1. Push this repo to GitHub.
-2. Import into [Vercel](https://vercel.com).
-3. Set environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-4. Update Supabase Auth → URL Configuration:
-   - Site URL: your Vercel URL
-   - Redirect URLs: your Vercel URL + `http://localhost:5173`
-5. Update Edge Function secrets `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGIN` to match Vercel.
-
-## Usage flow
-
-### Lecturer
-
-1. Sign up as **lecturer**.
-2. Create **courses** and **venues** (use “Use current GPS” at the lecture room).
-3. Start a **session** (choose verification mode: `qr_only`, `qr_geofence`, or `full`).
-4. Display the rotating QR; watch the live check-in feed.
-5. Export CSV for evaluation.
-
-### Student
-
-1. Sign up as **student** (with matric number).
-2. **Enrol biometrics** once (supervised — lecturer verifies ID card).
-3. At each session: **Check in** → scan QR → allow GPS → biometric prompt (when mode is `full`).
-
-## Verification modes (evaluation)
-
-Each session has a `verification_mode`:
-
-| Mode | Checks |
-|---|---|
-| `qr_only` | Valid QR token only |
-| `qr_geofence` | QR + GPS geofence |
-| `full` | QR + geofence + WebAuthn |
-
-## Security notes
-
-- Attendance writes go through `verify-checkin` Edge Function only (service role).
-- QR tokens expire in 30 seconds and use one-time nonces (`jti`).
-- WebAuthn requires HTTPS — use Vercel for real phone testing.
-- Never commit `.env` or service role keys.
-
-## Build order completed in this scaffold
-
-- [x] Schema + RLS migrations
-- [x] Auth (login/signup with role metadata)
-- [x] Lecturer: courses, venues, sessions, live feed, CSV export
-- [x] Edge Functions: QR issue, verify-checkin, WebAuthn register/authenticate
-- [x] Student: biometric enrolment, QR scan + check-in
-- [ ] Offline sync queue (lecturer dashboard) — next step
-- [ ] Device reuse review screen — next step
-
-## Local development tips
-
-- Test WebAuthn on your **phone** against the **deployed Vercel URL**, not just localhost.
-- Start with `full` mode on one test session after enrolment works.
-- Use Supabase Table Editor to inspect `attendance_records.flagged_reason` during evaluation.
+- [x] **Phase 0**: Project setup & PWA scaffold
+- [x] **Phase 1**: Database schema & RLS policies
+- [x] **Phase 2**: Auth & Role-based routes
+- [x] **Phase 3**: WebAuthn enrolment flow
+- [x] **Phase 4**: WebAuthn check-in verification
+- [x] **Phase 5**: Rotating QR token generation & scanner
+- [x] **Phase 6**: GPS Haversine geofence & accuracy checks
+- [x] **Phase 7**: Combined atomic `/verify-checkin` Edge Function
+- [x] **Phase 8**: Client-side IndexedDB queue & SW Background Sync

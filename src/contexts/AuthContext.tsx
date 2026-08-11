@@ -56,13 +56,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function loadProfile(userId: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    setProfile(data);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Failed to load profile:', error);
+      }
+      setProfile(data ?? null);
+    } catch (err) {
+      console.error('Unexpected error in loadProfile:', err);
+      setProfile(null);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signIn(email: string, password: string) {
