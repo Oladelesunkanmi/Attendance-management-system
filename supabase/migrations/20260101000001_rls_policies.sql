@@ -10,8 +10,13 @@ alter table qr_token_nonces enable row level security;
 alter table attendance_records enable row level security;
 alter table device_reuse_flags enable row level security;
 alter table rate_limit_buckets enable row level security;
+alter table profile_creation_errors enable row level security;
 
 -- Helper: is the current user a lecturer?
+-- Note: SECURITY DEFINER executes this function with the privileges of its owner (e.g. postgres).
+-- Because table owners bypass Row Level Security policies on public.profiles for this query,
+-- executing this SELECT statement does not trigger the profiles SELECT policy that calls is_lecturer(),
+-- making this query safe from RLS policy recursion.
 create or replace function public.is_lecturer()
 returns boolean
 language sql
@@ -19,13 +24,9 @@ stable
 security definer
 set search_path = public
 as $$
-  select coalesce(
-    (auth.jwt() -> 'user_metadata' ->> 'role') = 'lecturer',
-    exists (
-      select 1 from profiles
-      where id = auth.uid() and role = 'lecturer'
-    ),
-    false
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'lecturer'
   );
 $$;
 
@@ -172,9 +173,14 @@ create policy "Lecturers can update device reuse flags"
   to authenticated
   using (public.is_lecturer());
 
--- rate_limit_buckets: Edge Functions only
+-- rate_limit_buckets & profile_creation_errors: Edge Functions / System only
 create policy "No direct client access to rate limits"
   on rate_limit_buckets for all
+  to authenticated
+  using (false);
+
+create policy "No direct client access to profile creation errors"
+  on profile_creation_errors for all
   to authenticated
   using (false);
 

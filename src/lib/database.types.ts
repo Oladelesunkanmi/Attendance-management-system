@@ -166,3 +166,15 @@ export type Database = {
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Session = Database['public']['Tables']['sessions']['Row'];
 export type AttendanceRecord = Database['public']['Tables']['attendance_records']['Row'];
+
+/**
+ * Returned by `.select('*, profiles(full_name, matric_number)')` on attendance_records.
+ * The `profiles` field is the nested join result and may be null if the profile
+ * is missing (e.g. profile_creation_errors case).
+ */
+export type AttendanceWithProfile = AttendanceRecord & {
+  profiles: {
+    full_name: string;
+    matric_number: string | null;
+  } | null;
+};

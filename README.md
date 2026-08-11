@@ -2,6 +2,28 @@
 
 React PWA frontend with Supabase Postgres, Auth, Row Level Security, Edge Functions, and Service Worker Offline Sync.
 
+---
+
+## Project Objectives
+
+**General objective:** To design and implement a multi-factor attendance verification system that combines rotating QR codes, GPS geofencing, and WebAuthn biometric authentication to reduce proxy attendance ("buddy check-in") fraud in a university classroom setting, while preserving usability and data privacy.
+
+**Specific objectives:**
+
+1. **Schema + access-control model** — Postgres schema with Row Level Security enforces data isolation between students, lecturers, and course enrollments at the database layer, not just in application code.
+2. **Device-bound biometric authentication (WebAuthn)** — ties a single physical device to a single student account; cross-device reuse is detected via `device_attestation_id` cross-reference.
+3. **Time-limited, rotating QR tokens** — tokens rotate every 25 seconds and are consumed exactly once via an atomic nonce table, preventing screenshot replay.
+4. **GPS geofencing** — verifies a student's reported location falls within a configurable radius of the registered classroom (haversine distance); flags rather than hard-blocks to account for indoor GPS drift, with a documented account of spoofing limitations.
+5. **Combined, atomic verification endpoint** — a single Edge Function requires all active signals (token + location + biometric) to agree before writing an attendance record, with distinct, specific failure codes per layer.
+6. **Configurable verification modes** — lecturers select per-session strictness (`qr_only`, `qr_geofence`, or `full`) to accommodate venues with varying GPS reliability.
+7. **Per-user rate limiting** — the check-in endpoint enforces a request-count ceiling per user per sliding window to prevent automated token brute-forcing.
+8. **Offline-tolerant check-in** — client-side IndexedDB queue + Service Worker Background Sync retries check-ins on reconnection; the SW discards items whose QR token has expired before retry rather than re-submitting stale tokens.
+9. **Lecturer-facing dashboard** — session creation, live attendance monitoring (Supabase Realtime push), and per-session CSV export with student names and matric numbers.
+10. **Fraud-resistance evaluation** — a structured limitations analysis documents system behaviour against proxy check-in, GPS spoofing, credential sharing, and QR replay, rather than making unqualified security claims.
+11. **Biometric data privacy (NDPR)** — raw biometric data never leaves the student's device; only the public-key material (`public_key bytea`) and an incrementing counter are stored server-side, consistent with the WebAuthn specification.
+
+---
+
 ## Stack
 
 - **Frontend:** React (Vite) + Tailwind CSS + PWA (Custom Service Worker + IndexedDB)
@@ -143,7 +165,7 @@ Each session supports selectable verification modes:
 
 | Mode | Verification Checks |
 |---|---|
-| `qr_only` | Rotating QR Token only (30s TTL) |
+| `qr_only` | Rotating QR Token only (25 s rotation, consumed-once nonce) |
 | `qr_geofence` | QR Token + GPS Geofence Haversine Check |
 | `full` | QR Token + GPS Geofence + WebAuthn Biometric Verification |
 

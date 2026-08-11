@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Card, Shell } from '../components/ui';
 
@@ -7,9 +7,9 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <Shell title="Loading">
-        <div className="p-8 text-center text-slate-400">Loading your profile…</div>
-      </Shell>
+      <div className="flex h-screen items-center justify-center bg-[#f4f7fe] text-gray-500 text-sm font-medium">
+        Loading dashboard…
+      </div>
     );
   }
 
@@ -33,37 +33,10 @@ export default function HomePage() {
     );
   }
 
-  const isLecturer = profile.role === 'lecturer';
+  if (profile.role === 'lecturer') {
+    return <Navigate to="/lecturer/sessions" replace />;
+  }
 
-  return (
-    <Shell
-      title={`Welcome, ${profile.full_name}`}
-      subtitle={isLecturer ? 'Lecturer dashboard' : 'Student check-in portal'}
-    >
-      <div className="space-y-4">
-        <Card>
-          <p className="text-sm text-slate-300">
-            Signed in as <span className="font-medium text-white">{profile.role}</span>
-            {profile.matric_number ? ` · ${profile.matric_number}` : ''}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            {isLecturer ? (
-              <>
-                <Link to="/lecturer/courses"><Button>Courses</Button></Link>
-                <Link to="/lecturer/venues"><Button variant="secondary">Venues</Button></Link>
-                <Link to="/lecturer/sessions"><Button variant="secondary">Sessions</Button></Link>
-                <Link to="/lecturer/enrolment"><Button variant="secondary">Supervise enrolment</Button></Link>
-              </>
-            ) : (
-              <>
-                <Link to="/student/check-in"><Button>Check in</Button></Link>
-                <Link to="/student/enrol"><Button variant="secondary">Enrol biometrics</Button></Link>
-              </>
-            )}
-            <Button variant="danger" onClick={() => signOut()}>Sign out</Button>
-          </div>
-        </Card>
-      </div>
-    </Shell>
-  );
+  return <Navigate to="/student/check-in" replace />;
 }
+

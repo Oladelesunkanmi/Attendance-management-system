@@ -92,6 +92,13 @@ create table rate_limit_buckets (
   window_start timestamptz not null default now()
 );
 
+create table profile_creation_errors (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid,
+  error_message text not null,
+  created_at timestamptz default now()
+);
+
 -- Indexes for dashboard and lookups
 create index attendance_records_session_id_idx on attendance_records(session_id);
 create index sessions_course_active_idx on sessions(course_id) where is_active;
@@ -116,6 +123,8 @@ begin
   );
   return new;
 exception when others then
+  insert into public.profile_creation_errors (user_id, error_message)
+  values (new.id, sqlerrm);
   return new;
 end;
 $$;
