@@ -147,6 +147,75 @@ export type Database = {
         };
         Relationships: [];
       };
+      webauthn_credentials: {
+        Row: {
+          id: string;
+          student_id: string;
+          credential_id: string;
+          public_key: string;
+          counter: number;
+          aaguid: string | null;
+          device_attestation_id: string | null;
+          enrolled_by: string | null;
+          enrolled_at: string;
+          revoked_at: string | null;
+          revoked_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          student_id: string;
+          credential_id: string;
+          public_key: string;
+          counter?: number;
+          aaguid?: string | null;
+          device_attestation_id?: string | null;
+          enrolled_by?: string | null;
+          enrolled_at?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          student_id?: string;
+          credential_id?: string;
+          public_key?: string;
+          counter?: number;
+          aaguid?: string | null;
+          device_attestation_id?: string | null;
+          enrolled_by?: string | null;
+          enrolled_at?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+        };
+        Relationships: [];
+      };
+      enrolment_pins: {
+        Row: {
+          id: string;
+          pin: string;
+          lecturer_id: string;
+          expires_at: string;
+          used_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          pin: string;
+          lecturer_id: string;
+          expires_at: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          pin?: string;
+          lecturer_id?: string;
+          expires_at?: string;
+          used_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

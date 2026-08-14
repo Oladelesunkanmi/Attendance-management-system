@@ -1,7 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
   @apply bg-slate-950 text-slate-100 min-h-screen;
+}
+
+@keyframes scan-laser {
+  0% { top: 4%; opacity: 0.7; }
+  50% { top: 96%; opacity: 1; }
+  100% { top: 4%; opacity: 0.7; }
+}
+
+.animate-scan-laser {
+  animation: scan-laser 2.2s ease-in-out infinite;
 }
