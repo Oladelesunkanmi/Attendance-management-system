@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     // ── Step 1: Generate registration options ─────────────────────────────────
     if (step === 'options') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID, rpName } = getWebauthnConfig(req);
+      const { rpID, rpName } = getWebauthnConfig(req, body.rpID, body.origin);
 
       // Only exclude credentials that are currently active (not revoked).
       // This allows re-registering a device after a credential is revoked.
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     // ── Step 2: Verify attestation + PIN + credential cap ────────────────────
     if (step === 'verify') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID, origin } = getWebauthnConfig(req);
+      const { rpID, origin } = getWebauthnConfig(req, body.rpID, body.origin);
       const { attestationResponse, enrolmentPin } = body;
 
       // ── [FIX #1] Server-side PIN verification (mandatory) ─────────────────

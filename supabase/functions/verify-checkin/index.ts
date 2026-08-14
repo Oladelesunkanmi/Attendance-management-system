@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'WebAuthn assertion required' }, 400);
       }
 
-      const { rpID, origin } = getWebauthnConfig(req);
+      const { rpID, origin } = getWebauthnConfig(req, body.rpID, body.origin);
       const { data: challengeRow } = await serviceClient
         .from('webauthn_challenges')
         .select('*')

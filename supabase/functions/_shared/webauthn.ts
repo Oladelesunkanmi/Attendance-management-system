@@ -1,25 +1,23 @@
 /**
- * Resolves WebAuthn RP ID and Origin dynamically from the incoming HTTP request,
- * with fallbacks to environment variables (WEBAUTHN_RP_ID, WEBAUTHN_ORIGIN).
- *
- * This prevents the browser error:
- * "The RP ID 'localhost' is invalid for this domain"
- * when deploying to Vercel or custom domains where the browser domain does not match 'localhost'.
+ * Resolves WebAuthn RP ID and Origin dynamically:
+ * 1. Explicitly passed in body (e.g. window.location.hostname from client)
+ * 2. Origin / Referer HTTP header from request
+ * 3. Environment variables (WEBAUTHN_RP_ID, WEBAUTHN_ORIGIN)
+ * 4. Safe fallback to localhost / http://localhost:5173
  */
-export function getWebauthnConfig(req?: Request) {
-  let envRpID = Deno.env.get('WEBAUTHN_RP_ID');
-  let envOrigin = Deno.env.get('WEBAUTHN_ORIGIN');
+export function getWebauthnConfig(req?: Request, explicitRpID?: string, explicitOrigin?: string) {
+  const envRpID = Deno.env.get('WEBAUTHN_RP_ID');
+  const envOrigin = Deno.env.get('WEBAUTHN_ORIGIN');
   const rpName = Deno.env.get('WEBAUTHN_RP_NAME') ?? 'Attendance System';
 
-  let derivedOrigin = envOrigin;
-  let derivedRpID = envRpID;
+  let derivedOrigin = explicitOrigin || envOrigin;
+  let derivedRpID = explicitRpID || envRpID;
 
   if (req) {
     const originHeader = req.headers.get('origin') || req.headers.get('referer');
     if (originHeader) {
       try {
         const parsed = new URL(originHeader);
-        // If env is missing, or if env was set to 'localhost' while the client is accessing from a remote domain (e.g. Vercel)
         if (!derivedOrigin || (derivedOrigin.includes('localhost') && !parsed.hostname.includes('localhost'))) {
           derivedOrigin = parsed.origin;
         }
@@ -32,7 +30,6 @@ export function getWebauthnConfig(req?: Request) {
     }
   }
 
-  // Final fallback defaults
   const rpID = derivedRpID || 'localhost';
   const origin = derivedOrigin || 'http://localhost:5173';
 

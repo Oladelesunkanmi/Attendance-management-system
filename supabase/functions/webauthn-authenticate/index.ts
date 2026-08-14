@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
 
     if (step === 'options') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID } = getWebauthnConfig(req);
+      const { rpID } = getWebauthnConfig(req, body.rpID, body.origin);
 
       // Only include credentials that have not been revoked by a lecturer.
       const { data: credentials } = await serviceClient
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
     if (step === 'verify') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID, origin } = getWebauthnConfig(req);
+      const { rpID, origin } = getWebauthnConfig(req, body.rpID, body.origin);
       const { assertionResponse } = body;
 
       const { data: challengeRow } = await serviceClient

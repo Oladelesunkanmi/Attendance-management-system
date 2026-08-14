@@ -26,10 +26,22 @@ export default function EnrolWebAuthnPage() {
     setStatus(null);
 
     try {
+      const currentRpId = window.location.hostname;
+      const currentOrigin = window.location.origin;
+
       const { options } = await callEdgeFunction<{ options: PublicKeyCredentialCreationOptionsJSON }>(
         'webauthn-register',
-        { step: 'options' },
+        {
+          step: 'options',
+          rpID: currentRpId,
+          origin: currentOrigin,
+        },
       );
+
+      // Client-side safeguard: Ensure options.rp.id matches the current browser domain
+      if (options.rp && currentRpId !== 'localhost') {
+        options.rp.id = currentRpId;
+      }
 
       const attestationResponse = await startRegistration({ optionsJSON: options });
 
@@ -37,6 +49,8 @@ export default function EnrolWebAuthnPage() {
         step: 'verify',
         attestationResponse,
         enrolmentPin: trimmedPin,   // server resolves lecturer_id from this
+        rpID: currentRpId,
+        origin: currentOrigin,
       });
 
       setStatus('Biometric enrolment complete!');

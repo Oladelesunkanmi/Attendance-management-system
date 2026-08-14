@@ -234,13 +234,25 @@ export default function CheckInPage() {
       setStep('biometric');
       setStatus('Authenticating device passkey (Touch ID / Face ID)…');
 
+      const currentRpId = window.location.hostname;
+      const currentOrigin = window.location.origin;
+
       let options: PublicKeyCredentialRequestOptionsJSON | undefined;
       try {
         const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>(
           'webauthn-authenticate',
-          { step: 'options' },
+          {
+            step: 'options',
+            rpID: currentRpId,
+            origin: currentOrigin,
+          },
         );
         options = res.options;
+
+        // Client-side safeguard: Ensure options.rpId matches the current browser domain
+        if (options && currentRpId !== 'localhost') {
+          options.rpId = currentRpId;
+        }
       } catch (err) {
         if (!navigator.onLine) {
           console.warn('Offline during webauthn options request');
@@ -265,6 +277,8 @@ export default function CheckInPage() {
         longitude: position.coords.longitude,
         gpsAccuracy: position.coords.accuracy,
         assertionResponse,
+        rpID: currentRpId,
+        origin: currentOrigin,
       };
 
       // 3. Submitting to server (or queueing if offline)
