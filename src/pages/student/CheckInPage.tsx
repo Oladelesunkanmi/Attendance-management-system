@@ -249,9 +249,11 @@ export default function CheckInPage() {
         );
         options = res.options;
 
-        // Client-side safeguard: Ensure options.rpId matches the current browser domain
-        if (options && currentRpId !== 'localhost') {
-          options.rpId = currentRpId;
+        if (options) {
+          options.userVerification = 'required';
+          if (currentRpId !== 'localhost') {
+            options.rpId = currentRpId;
+          }
         }
       } catch (err) {
         if (!navigator.onLine) {

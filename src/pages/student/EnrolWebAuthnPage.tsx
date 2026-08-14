@@ -38,6 +38,13 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
+      // Force built-in phone biometric sensor (Fingerprint / Touch ID / Face ID)
+      options.authenticatorSelection = {
+        authenticatorAttachment: 'platform',
+        userVerification: 'required',
+        residentKey: 'preferred',
+      };
+
       // Client-side safeguard: Ensure options.rp.id matches the current browser domain
       if (options.rp && currentRpId !== 'localhost') {
         options.rp.id = currentRpId;
