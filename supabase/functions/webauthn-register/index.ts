@@ -30,13 +30,13 @@ Deno.serve(async (req) => {
       const options = await generateRegistrationOptions({
         rpName,
         rpID,
+        userID: new TextEncoder().encode(profile.id),
         userName: profile.matric_number ?? profile.id,
         userDisplayName: profile.full_name,
         attestationType: 'none',
         authenticatorSelection: {
-          authenticatorAttachment: 'platform', // Binds to this device's built-in biometric sensor (Touch ID, Face ID, Android Fingerprint, Windows Hello)
-          userVerification: 'required',        // Requires active biometric (fingerprint/face) confirmation
-          residentKey: 'preferred',
+          residentKey: 'required',
+          userVerification: 'required',
         },
         excludeCredentials: (existing ?? []).map((cred) => ({
           id: cred.credential_id,
