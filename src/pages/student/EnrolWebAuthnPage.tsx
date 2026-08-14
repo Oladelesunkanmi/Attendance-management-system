@@ -38,10 +38,11 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
-      // Universal mobile WebAuthn options for Android & iOS
+      // Direct platform biometric enrollment (hardware bound to this phone)
       options.authenticatorSelection = {
-        userVerification: 'preferred',
-        residentKey: 'preferred',
+        authenticatorAttachment: 'platform',
+        userVerification: 'required',
+        residentKey: 'discouraged',
       };
 
       // Client-side safeguard: Ensure options.rp.id matches the current browser domain
