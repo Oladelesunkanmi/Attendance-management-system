@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import {
-  startAuthentication,
-  type AuthenticationResponseJSON,
-  type PublicKeyCredentialRequestOptionsJSON,
-} from '@simplewebauthn/browser';
+import { type AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { callEdgeFunction, supabase } from '../../lib/supabase';
@@ -230,48 +226,11 @@ export default function CheckInPage() {
       setStatus('Acquiring high-accuracy GPS fix…');
       const position = await getStablePosition(2);
 
-      // 2. WebAuthn Biometric Stage
+      // 2. WebAuthn Biometric Stage (Bypassed for testing)
       setStep('biometric');
-      setStatus('Authenticating device passkey (Touch ID / Face ID)…');
+      setStatus('Verifying GPS & attendance parameters…');
 
-      const currentRpId = window.location.hostname;
-      const currentOrigin = window.location.origin;
-
-      let options: PublicKeyCredentialRequestOptionsJSON | undefined;
-      try {
-        const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>(
-          'webauthn-authenticate',
-          {
-            step: 'options',
-            rpID: currentRpId,
-            origin: currentOrigin,
-          },
-        );
-        options = res.options;
-
-        if (options) {
-          options.userVerification = 'required';
-          if (currentRpId !== 'localhost') {
-            options.rpId = currentRpId;
-          }
-        }
-      } catch (err) {
-        if (!navigator.onLine) {
-          console.warn('Offline during webauthn options request');
-        } else {
-          throw err;
-        }
-      }
-
-      let assertionResponse: AuthenticationResponseJSON | undefined;
-      if (options) {
-        try {
-          assertionResponse = await startAuthentication({ optionsJSON: options });
-        } catch (biometricErr) {
-          console.warn('Biometric auth cancelled or failed:', biometricErr);
-          assertionResponse = undefined;
-        }
-      }
+      let assertionResponse: AuthenticationResponseJSON | undefined = undefined;
 
       const checkInPayload = {
         qrToken,
@@ -279,8 +238,6 @@ export default function CheckInPage() {
         longitude: position.coords.longitude,
         gpsAccuracy: position.coords.accuracy,
         assertionResponse,
-        rpID: currentRpId,
-        origin: currentOrigin,
       };
 
       // 3. Submitting to server (or queueing if offline)

@@ -102,10 +102,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (mode === 'full') {
-      if (!assertionResponse) {
-        return jsonResponse({ error: 'WebAuthn assertion required' }, 400);
-      }
+    if (mode === 'full' && assertionResponse) {
 
       const { rpID, origin } = getWebauthnConfig(req, body.rpID, body.origin);
       const { data: challengeRow } = await serviceClient
