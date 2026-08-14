@@ -38,11 +38,11 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
-      // Android Credential Manager compatible options: residentKey required + userVerification required
+      // Enforce built-in phone biometric sensor (platform authenticator)
       if (options.authenticatorSelection) {
+        options.authenticatorSelection.authenticatorAttachment = 'platform';
         options.authenticatorSelection.residentKey = 'required';
         options.authenticatorSelection.userVerification = 'required';
-        delete (options.authenticatorSelection as any).authenticatorAttachment;
       }
 
       // Client-side safeguard: Ensure options.rp.id matches the current browser domain

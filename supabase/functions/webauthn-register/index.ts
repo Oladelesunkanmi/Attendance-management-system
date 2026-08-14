@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
         userDisplayName: profile.full_name,
         attestationType: 'none',
         authenticatorSelection: {
+          authenticatorAttachment: 'platform',
           residentKey: 'required',
           userVerification: 'required',
         },
