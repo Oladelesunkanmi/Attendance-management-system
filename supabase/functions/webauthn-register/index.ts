@@ -35,9 +35,8 @@ Deno.serve(async (req) => {
         userDisplayName: profile.full_name,
         attestationType: 'none',
         authenticatorSelection: {
-          authenticatorAttachment: 'platform',
-          residentKey: 'required',
-          userVerification: 'required',
+          userVerification: 'preferred',
+          residentKey: 'preferred',
         },
         excludeCredentials: (existing ?? []).map((cred) => ({
           id: cred.credential_id,

@@ -38,12 +38,11 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
-      // Enforce built-in phone biometric sensor (platform authenticator)
-      if (options.authenticatorSelection) {
-        options.authenticatorSelection.authenticatorAttachment = 'platform';
-        options.authenticatorSelection.residentKey = 'required';
-        options.authenticatorSelection.userVerification = 'required';
-      }
+      // Universal mobile WebAuthn options for Android & iOS
+      options.authenticatorSelection = {
+        userVerification: 'preferred',
+        residentKey: 'preferred',
+      };
 
       // Client-side safeguard: Ensure options.rp.id matches the current browser domain
       if (options.rp && currentRpId !== 'localhost') {
@@ -62,8 +61,11 @@ export default function EnrolWebAuthnPage() {
 
       setStatus('Biometric enrolment complete!');
       setPin('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Enrolment failed');
+    } catch (err: any) {
+      console.error('Enrolment error detail:', err);
+      const name = err?.name || 'Error';
+      const msg = err?.message || String(err);
+      setError(`[${name}] ${msg}`);
     } finally {
       setLoading(false);
     }
