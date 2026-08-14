@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -96,6 +97,44 @@ export default function SessionsPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // ── Supervisor PIN state ──────────────────────────────────────────────────
+  const [supervisorPin, setSupervisorPin] = useState<string | null>(null);
+  const [pinExpiresAt, setPinExpiresAt] = useState<Date | null>(null);
+  const [pinSecondsLeft, setPinSecondsLeft] = useState(0);
+  const [pinLoading, setPinLoading] = useState(false);
+
+  useEffect(() => {
+    if (!pinExpiresAt) return;
+    const tick = () => {
+      const secs = Math.max(0, Math.ceil((pinExpiresAt.getTime() - Date.now()) / 1000));
+      setPinSecondsLeft(secs);
+      if (secs === 0) {
+        setSupervisorPin(null);
+        setPinExpiresAt(null);
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [pinExpiresAt]);
+
+  async function generateSupervisorPin() {
+    setPinLoading(true);
+    setError(null);
+    try {
+      const { pin: newPin, expiresAt: exp } = await callEdgeFunction<{
+        pin: string;
+        expiresAt: string;
+      }>('issue-enrol-pin', {});
+      setSupervisorPin(newPin);
+      setPinExpiresAt(new Date(exp));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate supervisor PIN');
+    } finally {
+      setPinLoading(false);
+    }
+  }
 
   // ── QR countdown ─────────────────────────────────────────────────────────
   const [secondsLeft, setSecondsLeft] = useState(QR_INTERVAL_MS / 1000);
@@ -274,6 +313,71 @@ export default function SessionsPage() {
           <button className="text-xs font-semibold text-red-600 hover:underline" onClick={() => setError(null)}>Dismiss</button>
         </div>
       )}
+
+      {/* ── Supervisor Enrolment PIN / Session Code Bar ────────────────────── */}
+      <div className="mb-8 rounded-2xl bg-gradient-to-r from-[#0b1335] via-[#111d4e] to-[#1e2a5e] text-white p-5 shadow-sm border border-blue-900/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-blue-500/20 text-blue-300 border border-blue-400/20 shadow-inner">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white tracking-wide">Supervisor Enrolment PIN</h3>
+              <span className="text-[10px] font-semibold uppercase tracking-wider bg-blue-500/30 text-blue-200 px-2 py-0.5 rounded-full border border-blue-400/30">
+                Single-use Code
+              </span>
+            </div>
+            <p className="text-xs text-blue-200/80 mt-0.5">
+              Need to supervise a student's biometric enrolment? Generate a 6-digit session PIN (5-min validity).
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {supervisorPin && pinSecondsLeft > 0 ? (
+            <div className="flex items-center gap-3 bg-white/10 border border-white/20 rounded-xl px-4 py-2">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-200 block leading-tight">Session PIN</span>
+                <span className="text-2xl font-mono font-black tracking-widest text-white">{supervisorPin.slice(0, 3)} {supervisorPin.slice(3)}</span>
+              </div>
+              <div className="border-l border-white/20 pl-3 text-right">
+                <span className="text-xs font-semibold tabular-nums text-emerald-300 block">
+                  {Math.floor(pinSecondsLeft / 60)}:{(pinSecondsLeft % 60).toString().padStart(2, '0')}
+                </span>
+                <span className="text-[10px] text-blue-200/70">valid</span>
+              </div>
+            </div>
+          ) : null}
+
+          <button
+            onClick={generateSupervisorPin}
+            disabled={pinLoading}
+            className="flex-1 md:flex-none rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-blue-600/30 transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {pinLoading ? (
+              'Generating…'
+            ) : supervisorPin && pinSecondsLeft > 0 ? (
+              'Regenerate PIN'
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Generate Enrolment PIN
+              </>
+            )}
+          </button>
+
+          <Link
+            to="/lecturer/enrolment"
+            className="rounded-xl bg-white/10 hover:bg-white/20 text-white px-3.5 py-2.5 text-xs font-semibold border border-white/15 transition flex items-center gap-1"
+          >
+            Supervision Details →
+          </Link>
+        </div>
+      </div>
 
       {/* ── Stat cards ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
