@@ -128,11 +128,13 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'Authentication challenge expired' }, 400);
       }
 
+      // Only accept a credential that has not been revoked.
       const { data: credential } = await serviceClient
         .from('webauthn_credentials')
         .select('*')
         .eq('student_id', profile.id)
         .eq('credential_id', assertionResponse.id)
+        .is('revoked_at', null)
         .single();
 
       if (!credential) {

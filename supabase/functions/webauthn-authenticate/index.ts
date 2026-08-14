@@ -24,10 +24,12 @@ Deno.serve(async (req) => {
       const { profile, serviceClient } = await requireStudent(req);
       const { rpID } = webauthnConfig();
 
+      // Only include credentials that have not been revoked by a lecturer.
       const { data: credentials } = await serviceClient
         .from('webauthn_credentials')
         .select('credential_id')
-        .eq('student_id', profile.id);
+        .eq('student_id', profile.id)
+        .is('revoked_at', null);
 
       if (!credentials?.length) {
         return jsonResponse({ error: 'No WebAuthn credential enrolled' }, 400);
@@ -70,11 +72,13 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'Authentication challenge expired' }, 400);
       }
 
+      // Reject authentication with a revoked credential.
       const { data: credential } = await serviceClient
         .from('webauthn_credentials')
         .select('*')
         .eq('student_id', profile.id)
         .eq('credential_id', assertionResponse.id)
+        .is('revoked_at', null)
         .single();
 
       if (!credential) {
