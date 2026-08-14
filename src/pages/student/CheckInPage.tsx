@@ -81,16 +81,16 @@ export default function CheckInPage() {
     loadStudentData();
   }, [loadStudentData]);
 
-  // ── Token 30s countdown timer ──────────────────────────────────────────────
+  // ── Token 120s (2 min) countdown timer ───────────────────────────────────
   useEffect(() => {
     if (!qrToken || step === 'success' || step === 'queued') return;
-    setTokenTimeLeft(30);
+    setTokenTimeLeft(120);
     const interval = setInterval(() => {
       setTokenTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
           setQrToken(null);
-          setError('Scanned QR code expired (30s limit). Please scan again.');
+          setError('Scanned QR code expired (2 min limit). Please scan again.');
           return 0;
         }
         return prev - 1;

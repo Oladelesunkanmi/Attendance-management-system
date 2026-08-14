@@ -2,7 +2,7 @@ import { SignJWT } from 'npm:jose@5';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireLecturer } from '../_shared/auth.ts';
 
-const TOKEN_TTL_SECONDS = 30;
+const TOKEN_TTL_SECONDS = 120;
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);

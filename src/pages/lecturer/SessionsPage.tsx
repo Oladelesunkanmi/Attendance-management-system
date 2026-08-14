@@ -10,8 +10,8 @@ type Course = Database['public']['Tables']['courses']['Row'];
 type Venue = Database['public']['Tables']['venues']['Row'];
 type Session = Database['public']['Tables']['sessions']['Row'];
 
-/** QR rotates every 25 s — show a visual countdown from 25 → 0 */
-const QR_INTERVAL_MS = 25_000;
+/** QR rotates every 120 s (2 minutes) — show a visual countdown from 120 → 0 */
+const QR_INTERVAL_MS = 120_000;
 
 // ── Stat card ────────────────────────────────────────────────────────────────
 function StatCard({
