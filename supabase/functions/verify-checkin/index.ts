@@ -4,13 +4,7 @@ import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireStudent } from '../_shared/auth.ts';
 import { distanceMeters, evaluateGpsFlags } from '../_shared/haversine.ts';
 import { checkRateLimit } from '../_shared/rate-limit.ts';
-
-function webauthnConfig() {
-  const rpID = Deno.env.get('WEBAUTHN_RP_ID');
-  const origin = Deno.env.get('WEBAUTHN_ORIGIN');
-  if (!rpID || !origin) throw new Error('WebAuthn env vars missing');
-  return { rpID, origin };
-}
+import { getWebauthnConfig } from '../_shared/webauthn.ts';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -113,7 +107,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'WebAuthn assertion required' }, 400);
       }
 
-      const { rpID, origin } = webauthnConfig();
+      const { rpID, origin } = getWebauthnConfig(req);
       const { data: challengeRow } = await serviceClient
         .from('webauthn_challenges')
         .select('*')

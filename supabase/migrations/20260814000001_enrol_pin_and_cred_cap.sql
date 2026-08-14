@@ -50,6 +50,21 @@ create index if not exists enrolment_pins_pin_idx
   on enrolment_pins (pin)
   where used_at is null;
 
+-- Row Level Security for enrolment_pins
+alter table enrolment_pins enable row level security;
+
+create policy "Lecturers can create enrolment pins"
+  on enrolment_pins for insert
+  with check (auth.uid() = lecturer_id and is_lecturer());
+
+create policy "Lecturers can view their own enrolment pins"
+  on enrolment_pins for select
+  using (auth.uid() = lecturer_id);
+
+create policy "Lecturers can update their own enrolment pins"
+  on enrolment_pins for update
+  using (auth.uid() = lecturer_id);
+
 -- Auto-expire: clean up PINs older than 1 hour to keep the table small.
 -- This is a best-effort housekeeping query you can run periodically, e.g.:
 --   DELETE FROM enrolment_pins WHERE expires_at < now() - interval '1 hour';

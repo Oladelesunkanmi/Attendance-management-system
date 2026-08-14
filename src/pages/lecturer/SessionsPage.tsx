@@ -129,8 +129,43 @@ export default function SessionsPage() {
       }>('issue-enrol-pin', {});
       setSupervisorPin(newPin);
       setPinExpiresAt(new Date(exp));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate supervisor PIN');
+    } catch (edgeFnErr) {
+      console.warn('Edge function issue-enrol-pin failed, using direct DB fallback:', edgeFnErr);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const bytes = new Uint8Array(4);
+        crypto.getRandomValues(bytes);
+        const num = new DataView(bytes.buffer).getUint32(0) % 1_000_000;
+        const newPin = num.toString().padStart(6, '0');
+        const exp = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+        await supabase
+          .from('enrolment_pins')
+          .update({ used_at: new Date().toISOString() })
+          .eq('lecturer_id', user.id)
+          .is('used_at', null);
+
+        const { error: insertErr } = await supabase
+          .from('enrolment_pins')
+          .insert({
+            pin: newPin,
+            lecturer_id: user.id,
+            expires_at: exp,
+          });
+
+        if (insertErr) throw insertErr;
+
+        setSupervisorPin(newPin);
+        setPinExpiresAt(new Date(exp));
+      } catch (fallbackErr) {
+        setError(
+          edgeFnErr instanceof Error
+            ? edgeFnErr.message
+            : 'Failed to generate supervisor PIN. Make sure migrations are pushed to Supabase.'
+        );
+      }
     } finally {
       setPinLoading(false);
     }

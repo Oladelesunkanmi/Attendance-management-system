@@ -4,14 +4,7 @@ import {
 } from 'npm:@simplewebauthn/server@11';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireStudent } from '../_shared/auth.ts';
-
-function webauthnConfig() {
-  const rpID = Deno.env.get('WEBAUTHN_RP_ID');
-  const origin = Deno.env.get('WEBAUTHN_ORIGIN');
-  const rpName = Deno.env.get('WEBAUTHN_RP_NAME') ?? 'Attendance System';
-  if (!rpID || !origin) throw new Error('WebAuthn env vars missing');
-  return { rpID, origin, rpName };
-}
+import { getWebauthnConfig } from '../_shared/webauthn.ts';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -24,7 +17,7 @@ Deno.serve(async (req) => {
     // ── Step 1: Generate registration options ─────────────────────────────────
     if (step === 'options') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID, rpName } = webauthnConfig();
+      const { rpID, rpName } = getWebauthnConfig(req);
 
       // Only exclude credentials that are currently active (not revoked).
       // This allows re-registering a device after a credential is revoked.
@@ -59,7 +52,7 @@ Deno.serve(async (req) => {
     // ── Step 2: Verify attestation + PIN + credential cap ────────────────────
     if (step === 'verify') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID, origin } = webauthnConfig();
+      const { rpID, origin } = getWebauthnConfig(req);
       const { attestationResponse, enrolmentPin } = body;
 
       // ── [FIX #1] Server-side PIN verification (mandatory) ─────────────────

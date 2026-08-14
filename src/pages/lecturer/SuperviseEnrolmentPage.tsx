@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import LecturerLayout from '../../components/LecturerLayout';
-import { callEdgeFunction } from '../../lib/supabase';
+import { callEdgeFunction, supabase } from '../../lib/supabase';
 import { ErrorText } from '../../components/ui';
 
 // ── PIN Generator ─────────────────────────────────────────────────────────────
@@ -33,8 +33,43 @@ function EnrolmentPinSection() {
       }>('issue-enrol-pin', {});
       setPin(newPin);
       setExpiresAt(new Date(exp));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate PIN');
+    } catch (edgeFnErr) {
+      console.warn('Edge function issue-enrol-pin failed, using direct DB fallback:', edgeFnErr);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const bytes = new Uint8Array(4);
+        crypto.getRandomValues(bytes);
+        const num = new DataView(bytes.buffer).getUint32(0) % 1_000_000;
+        const newPin = num.toString().padStart(6, '0');
+        const exp = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+        await supabase
+          .from('enrolment_pins')
+          .update({ used_at: new Date().toISOString() })
+          .eq('lecturer_id', user.id)
+          .is('used_at', null);
+
+        const { error: insertErr } = await supabase
+          .from('enrolment_pins')
+          .insert({
+            pin: newPin,
+            lecturer_id: user.id,
+            expires_at: exp,
+          });
+
+        if (insertErr) throw insertErr;
+
+        setPin(newPin);
+        setExpiresAt(new Date(exp));
+      } catch (fallbackErr) {
+        setError(
+          edgeFnErr instanceof Error
+            ? edgeFnErr.message
+            : 'Failed to generate PIN. Please ensure Edge Functions and DB migrations are deployed.'
+        );
+      }
     } finally {
       setLoading(false);
     }

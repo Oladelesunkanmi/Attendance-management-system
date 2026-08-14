@@ -4,13 +4,7 @@ import {
 } from 'npm:@simplewebauthn/server@11';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireStudent } from '../_shared/auth.ts';
-
-function webauthnConfig() {
-  const rpID = Deno.env.get('WEBAUTHN_RP_ID');
-  const origin = Deno.env.get('WEBAUTHN_ORIGIN');
-  if (!rpID || !origin) throw new Error('WebAuthn env vars missing');
-  return { rpID, origin };
-}
+import { getWebauthnConfig } from '../_shared/webauthn.ts';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -22,7 +16,7 @@ Deno.serve(async (req) => {
 
     if (step === 'options') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID } = webauthnConfig();
+      const { rpID } = getWebauthnConfig(req);
 
       // Only include credentials that have not been revoked by a lecturer.
       const { data: credentials } = await serviceClient
@@ -55,7 +49,7 @@ Deno.serve(async (req) => {
 
     if (step === 'verify') {
       const { profile, serviceClient } = await requireStudent(req);
-      const { rpID, origin } = webauthnConfig();
+      const { rpID, origin } = getWebauthnConfig(req);
       const { assertionResponse } = body;
 
       const { data: challengeRow } = await serviceClient

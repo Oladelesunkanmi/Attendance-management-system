@@ -20,22 +20,26 @@ export async function callEdgeFunction<T>(
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
-  const response = await fetch(
-    `${supabaseUrl}/functions/v1/${name}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-        apikey: supabaseAnonKey ?? '',
-      },
-      body: JSON.stringify(body),
+  const { data, error } = await supabase.functions.invoke(name, {
+    body,
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
     },
-  );
+  });
 
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error ?? 'Request failed');
+  if (error) {
+    let errorMsg = error.message;
+    // Extract custom JSON error if returned from Edge Function
+    if ((error as any).context?.json) {
+      try {
+        const errJson = await (error as any).context.json();
+        if (errJson?.error) errorMsg = errJson.error;
+      } catch {
+        // ignore fallback
+      }
+    }
+    throw new Error(errorMsg || `Edge Function "${name}" failed. Make sure it is deployed to Supabase.`);
   }
-  return payload as T;
+
+  return data as T;
 }
