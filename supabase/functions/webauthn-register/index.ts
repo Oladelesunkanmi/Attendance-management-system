@@ -61,39 +61,35 @@ Deno.serve(async (req) => {
       const { rpID, origin } = getWebauthnConfig(req, body.rpID, body.origin);
       const { attestationResponse, enrolmentPin } = body;
 
-      // ── [FIX #1] Server-side PIN verification (mandatory) ─────────────────
-      // The client provides a PIN the lecturer generated from issue-enrol-pin.
-      // We resolve the lecturer_id from it here — never trusting the client
-      // to tell us who supervised the enrolment.
-      if (!enrolmentPin) {
-        return jsonResponse(
-          { error: 'A supervisor PIN from your lecturer is required to enrol biometrics.' },
-          400,
-        );
+      // ── Server-side PIN verification (Optional for testing) ───────────────
+      // If a PIN is provided, verify it against enrolment_pins and mark it used.
+      // If omitted, allow self-enrolment for testing (enrolled_by = null).
+      let enrolledBy: string | null = null;
+
+      if (enrolmentPin && String(enrolmentPin).trim().length > 0) {
+        const { data: pinRow } = await serviceClient
+          .from('enrolment_pins')
+          .select('id, lecturer_id')
+          .eq('pin', String(enrolmentPin).trim())
+          .is('used_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .maybeSingle();
+
+        if (!pinRow) {
+          return jsonResponse(
+            { error: 'Invalid or expired supervisor PIN. Ask your lecturer to generate a new one.' },
+            400,
+          );
+        }
+
+        // PIN is valid — mark it as used immediately so it cannot be reused.
+        await serviceClient
+          .from('enrolment_pins')
+          .update({ used_at: new Date().toISOString() })
+          .eq('id', pinRow.id);
+
+        enrolledBy = pinRow.lecturer_id;
       }
-
-      const { data: pinRow } = await serviceClient
-        .from('enrolment_pins')
-        .select('id, lecturer_id')
-        .eq('pin', String(enrolmentPin).trim())
-        .is('used_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle();
-
-      if (!pinRow) {
-        return jsonResponse(
-          { error: 'Invalid or expired supervisor PIN. Ask your lecturer to generate a new one.' },
-          400,
-        );
-      }
-
-      // PIN is valid — mark it as used immediately so it cannot be reused.
-      await serviceClient
-        .from('enrolment_pins')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', pinRow.id);
-
-      const enrolledBy: string = pinRow.lecturer_id;
       // ─────────────────────────────────────────────────────────────────────
 
       const { data: challengeRow } = await serviceClient

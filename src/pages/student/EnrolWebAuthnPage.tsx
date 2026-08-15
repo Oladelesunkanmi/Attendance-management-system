@@ -16,8 +16,8 @@ export default function EnrolWebAuthnPage() {
     if (!profile) return;
 
     const trimmedPin = pin.trim();
-    if (trimmedPin.length !== 6 || !/^\d{6}$/.test(trimmedPin)) {
-      setError('Please enter the 6-digit PIN shown on your lecturer\'s screen.');
+    if (trimmedPin.length > 0 && (trimmedPin.length !== 6 || !/^\d{6}$/.test(trimmedPin))) {
+      setError('If entering a Supervisor PIN, it must be 6 digits.');
       return;
     }
 
@@ -55,12 +55,12 @@ export default function EnrolWebAuthnPage() {
       await callEdgeFunction('webauthn-register', {
         step: 'verify',
         attestationResponse,
-        enrolmentPin: trimmedPin,   // server resolves lecturer_id from this
+        enrolmentPin: trimmedPin || undefined,
         rpID: currentRpId,
         origin: currentOrigin,
       });
 
-      setStatus('Biometric enrolment complete!');
+      setStatus('Biometric enrolment complete! Your device is now registered.');
       setPin('');
     } catch (err: any) {
       console.error('Enrolment error detail:', err);
@@ -75,13 +75,11 @@ export default function EnrolWebAuthnPage() {
   return (
     <StudentLayout
       title="Biometric Enrolment"
-      subtitle="Your lecturer must generate a supervisor PIN before you can register."
+      subtitle="Register your device's fingerprint or Face ID to enable attendance check-in."
     >
       <div className="rounded-2xl bg-white p-6 shadow-xs border border-gray-100 space-y-5">
         <p className="text-xs text-gray-600 leading-relaxed font-medium">
-          Ask your lecturer to verify your ID card and generate a PIN from their{' '}
-          <strong>Supervise Enrolment</strong> screen. Enter it below, then
-          complete the biometric prompt on your device.
+          Register your device's biometric key below. Supervisor PIN is optional for testing.
         </p>
 
         <div>
@@ -89,7 +87,7 @@ export default function EnrolWebAuthnPage() {
             htmlFor="input-enrol-pin"
             className="block text-xs font-semibold uppercase tracking-wider text-gray-700 mb-1.5"
           >
-            Supervisor PIN
+            Supervisor PIN (Optional)
           </label>
           <input
             id="input-enrol-pin"
@@ -104,7 +102,7 @@ export default function EnrolWebAuthnPage() {
               setPin(val);
               setError(null);
             }}
-            placeholder="6-digit PIN from your lecturer"
+            placeholder="Optional 6-digit PIN"
             className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 transition-all tracking-widest font-mono"
             disabled={loading}
           />
@@ -113,7 +111,7 @@ export default function EnrolWebAuthnPage() {
         <button
           id="btn-start-enrolment"
           onClick={handleEnrol}
-          disabled={loading || pin.length !== 6}
+          disabled={loading}
           className="w-full rounded-xl bg-blue-600 py-3.5 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
         >
           <span>{loading ? 'Waiting for Biometrics…' : 'Start Biometric Enrolment'}</span>
