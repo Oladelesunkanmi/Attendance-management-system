@@ -30,15 +30,19 @@ Deno.serve(async (req) => {
       const options = await generateRegistrationOptions({
         rpName,
         rpID,
-        userID: new TextEncoder().encode(profile.id),
+        // `userID` must be a string identifier. Passing an ArrayBuffer/Uint8Array
+        // (via TextEncoder) causes JSON serialization issues and breaks some
+        // client runtimes. Use the profile UUID string instead.
+        userID: profile.id,
         userName: profile.matric_number ?? profile.id,
         userDisplayName: profile.full_name,
         attestationType: 'none',
+        // Prefer the device's built-in platform authenticator so mobile
+        // devices will use fingerprint/Face ID / device PIN instead of
+        // suggesting a roaming USB security key.
         authenticatorSelection: {
-          // Do not force 'platform' — let the browser/OS pick the best
-          // authenticator. Forcing 'platform' blocks Android Credential Manager
-          // on devices where it isn't fully configured.
-          userVerification: 'preferred',
+          authenticatorAttachment: 'platform',
+          userVerification: 'required',
           residentKey: 'preferred',
         },
         excludeCredentials: (existing ?? []).map((cred) => ({
