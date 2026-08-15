@@ -69,12 +69,17 @@ export default function CheckInPage() {
         'webauthn-register',
         { step: 'options', rpID: currentRpId, origin: currentOrigin },
       );
+
+      // Let the browser / OS pick the best authenticator available.
+      // Forcing 'platform' causes Android Credential Manager to fail on some devices.
       options.authenticatorSelection = {
-        authenticatorAttachment: 'platform',
-        userVerification: 'required',
+        userVerification: 'preferred',
         residentKey: 'preferred',
       };
+
+      // Ensure rp.id matches the current domain
       if (options.rp && currentRpId !== 'localhost') options.rp.id = currentRpId;
+
       const attestationResponse = await startRegistration({ optionsJSON: options });
       await callEdgeFunction('webauthn-register', {
         step: 'verify',
@@ -85,6 +90,7 @@ export default function CheckInPage() {
       setEnrolStatus('Biometric enrolled! You can now check in with Face ID / Fingerprint.');
       setHasCredential(true);
     } catch (err: any) {
+      console.error('Enrolment error:', err?.name, err?.message, err);
       setEnrolError(`[${err?.name ?? 'Error'}] ${err?.message ?? String(err)}`);
     } finally {
       setEnrolLoading(false);

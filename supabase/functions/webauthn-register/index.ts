@@ -35,8 +35,10 @@ Deno.serve(async (req) => {
         userDisplayName: profile.full_name,
         attestationType: 'none',
         authenticatorSelection: {
-          authenticatorAttachment: 'platform',
-          userVerification: 'required',
+          // Do not force 'platform' — let the browser/OS pick the best
+          // authenticator. Forcing 'platform' blocks Android Credential Manager
+          // on devices where it isn't fully configured.
+          userVerification: 'preferred',
           residentKey: 'preferred',
         },
         excludeCredentials: (existing ?? []).map((cred) => ({
