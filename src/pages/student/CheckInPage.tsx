@@ -63,6 +63,17 @@ export default function CheckInPage() {
     setEnrolError(null);
     setEnrolStatus(null);
     try {
+      // ── Check device supports fingerprint / Face ID ──────────────────────
+      const supported = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!supported) {
+        setEnrolError(
+          'Your device or browser does not support fingerprint / Face ID authentication. ' +
+          'Make sure you have a fingerprint or screen lock set up in your device settings, ' +
+          'then try again in Chrome or Safari.',
+        );
+        return;
+      }
+
       const currentRpId = window.location.hostname;
       const currentOrigin = window.location.origin;
       const { options } = await callEdgeFunction<{ options: PublicKeyCredentialCreationOptionsJSON }>(
@@ -70,10 +81,11 @@ export default function CheckInPage() {
         { step: 'options', rpID: currentRpId, origin: currentOrigin },
       );
 
-      // Let the browser / OS pick the best authenticator available.
-      // Forcing 'platform' causes Android Credential Manager to fail on some devices.
+      // Force platform authenticator only (fingerprint / Face ID on the device).
+      // Cross-device (USB keys, phones via Bluetooth) are explicitly excluded.
       options.authenticatorSelection = {
-        userVerification: 'preferred',
+        authenticatorAttachment: 'platform',
+        userVerification: 'required',
         residentKey: 'preferred',
       };
 
@@ -91,7 +103,16 @@ export default function CheckInPage() {
       setHasCredential(true);
     } catch (err: any) {
       console.error('Enrolment error:', err?.name, err?.message, err);
-      setEnrolError(`[${err?.name ?? 'Error'}] ${err?.message ?? String(err)}`);
+      // Give actionable messages for common WebAuthn errors
+      if (err?.name === 'NotAllowedError') {
+        setEnrolError('Biometric prompt was cancelled or timed out. Please try again.');
+      } else if (err?.name === 'InvalidStateError') {
+        setEnrolError('This device is already registered. You only need to enrol once.');
+      } else if (err?.name === 'SecurityError') {
+        setEnrolError('Security error: the app domain does not match the expected origin. Contact support.');
+      } else {
+        setEnrolError(`[${err?.name ?? 'Error'}] ${err?.message ?? String(err)}`);
+      }
     } finally {
       setEnrolLoading(false);
     }
