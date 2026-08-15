@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Session is not active' }, 400);
     }
 
-    const { data: enrollment } = await serviceClient
+    let { data: enrollment } = await serviceClient
       .from('enrollments')
       .select('id')
       .eq('course_id', session.course_id)
@@ -76,7 +76,16 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!enrollment) {
-      return jsonResponse({ error: 'Not enrolled in this course' }, 403);
+      // Automatically enroll student into the course upon scanning a valid session QR code
+      const { data: newEnrollment } = await serviceClient
+        .from('enrollments')
+        .insert({
+          course_id: session.course_id,
+          student_id: profile.id,
+        })
+        .select('id')
+        .single();
+      enrollment = newEnrollment;
     }
 
     const venue = session.venues as {
