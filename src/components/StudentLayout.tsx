@@ -58,18 +58,6 @@ export default function StudentLayout({
             >
               Check In
             </NavLink>
-            <NavLink
-              to="/student/enrol"
-              className={({ isActive }) =>
-                `px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700 border border-blue-100 font-bold'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`
-              }
-            >
-              Enrol Biometrics
-            </NavLink>
           </nav>
 
           {/* User Profile & Sign Out Controls */}
