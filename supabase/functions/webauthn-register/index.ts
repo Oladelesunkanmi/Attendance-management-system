@@ -199,7 +199,21 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Invalid step' }, 400);
   } catch (err) {
     if (err instanceof Response) return err;
-    console.error(err);
+    try {
+      console.error('webauthn-register error', {
+        message: err?.message ?? String(err),
+        stack: err?.stack ?? null,
+        // Do not log full request body to avoid sensitive data exposure;
+        // only log a small summary helpful for debugging.
+        bodySummary: {
+          step: typeof body !== 'undefined' ? (body as any)?.step : undefined,
+          rpID: typeof body !== 'undefined' ? (body as any)?.rpID : undefined,
+          origin: typeof body !== 'undefined' ? (body as any)?.origin : undefined,
+        },
+      });
+    } catch (logErr) {
+      console.error('webauthn-register logging failure', logErr);
+    }
     return jsonResponse({ error: 'Internal server error' }, 500);
   }
 });
