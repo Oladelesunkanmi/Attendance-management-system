@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { callEdgeFunction } from '../../lib/supabase';
 import { ErrorText } from '../../components/ui';
 import StudentLayout from '../../components/StudentLayout';
 
@@ -25,30 +26,47 @@ export default function EnrolWebAuthnPage() {
     setStatus(null);
 
     try {
-      // Verify Supervisor PIN directly against database for testing
-      const { data: pinData, error: pinErr } = await supabase
-        .from('enrolment_pins')
-        .select('*')
-        .eq('pin', trimmedPin)
-        .is('used_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle();
+      const currentRpId = window.location.hostname;
+      const currentOrigin = window.location.origin;
 
-      if (pinErr || !pinData) {
-        setError('Invalid or expired Supervisor PIN. Please ask your lecturer for a new PIN.');
-        return;
+      const { options } = await callEdgeFunction<{ options: PublicKeyCredentialCreationOptionsJSON }>(
+        'webauthn-register',
+        {
+          step: 'options',
+          rpID: currentRpId,
+          origin: currentOrigin,
+        },
+      );
+
+      // Direct platform biometric enrollment (hardware bound to this phone)
+      options.authenticatorSelection = {
+        authenticatorAttachment: 'platform',
+        userVerification: 'required',
+        residentKey: 'preferred',
+      };
+
+      // Client-side safeguard: Ensure options.rp.id matches the current browser domain
+      if (options.rp && currentRpId !== 'localhost') {
+        options.rp.id = currentRpId;
       }
 
-      // Mark PIN as used
-      await supabase
-        .from('enrolment_pins')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', pinData.id);
+      const attestationResponse = await startRegistration({ optionsJSON: options });
 
-      setStatus('Supervisor PIN verified! Enrolment complete (Biometrics bypassed for QR testing).');
+      await callEdgeFunction('webauthn-register', {
+        step: 'verify',
+        attestationResponse,
+        enrolmentPin: trimmedPin,   // server resolves lecturer_id from this
+        rpID: currentRpId,
+        origin: currentOrigin,
+      });
+
+      setStatus('Biometric enrolment complete!');
       setPin('');
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : String(err));
+      console.error('Enrolment error detail:', err);
+      const name = err?.name || 'Error';
+      const msg = err?.message || String(err);
+      setError(`[${name}] ${msg}`);
     } finally {
       setLoading(false);
     }

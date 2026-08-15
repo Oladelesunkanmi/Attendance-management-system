@@ -102,7 +102,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (mode === 'full' && assertionResponse) {
+    if (mode === 'full') {
+      if (!assertionResponse) {
+        return jsonResponse({ error: 'WebAuthn biometric assertion required' }, 400);
+      }
 
       const { rpID, origin } = getWebauthnConfig(req, body.rpID, body.origin);
       const { data: challengeRow } = await serviceClient
