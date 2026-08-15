@@ -361,7 +361,7 @@ export default function CheckInPage() {
             <div>
               <p className="text-sm font-bold text-gray-900">Biometrics Not Yet Enrolled</p>
               <p className="text-xs text-gray-600 mt-0.5">
-                Ask your lecturer for a 6-digit Supervisor PIN to register this device's fingerprint or Face ID.
+                Register this device's fingerprint or Face ID to enable biometric attendance check-in.
               </p>
             </div>
           </div>
