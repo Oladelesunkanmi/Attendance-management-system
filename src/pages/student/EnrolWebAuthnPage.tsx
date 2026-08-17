@@ -26,6 +26,18 @@ export default function EnrolWebAuthnPage() {
     setStatus(null);
 
     try {
+      if (typeof PublicKeyCredential !== 'undefined' && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+        const supported = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        if (!supported) {
+          setError(
+            'Your device or browser does not support biometric passkeys. ' +
+            'Ensure you have a fingerprint or screen lock enabled in settings.',
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       const currentRpId = window.location.hostname;
       const currentOrigin = window.location.origin;
 
@@ -38,14 +50,14 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
-      // Direct platform biometric enrollment (hardware bound to this phone)
+      // Direct platform biometric enrollment (hardware bound to this device)
       options.authenticatorSelection = {
         authenticatorAttachment: 'platform',
         userVerification: 'required',
         residentKey: 'preferred',
       };
 
-      // Client-side safeguard: Ensure options.rp.id matches the current browser domain
+      // Client-side safeguard: Ensure options.rp.id matches current domain
       if (options.rp && currentRpId !== 'localhost') {
         options.rp.id = currentRpId;
       }
@@ -60,13 +72,20 @@ export default function EnrolWebAuthnPage() {
         origin: currentOrigin,
       });
 
-      setStatus('Biometric enrolment complete! Your device is now registered.');
+      setStatus('Biometric enrolment complete! Your device passkey is now registered.');
       setPin('');
     } catch (err: any) {
       console.error('Enrolment error detail:', err);
-      const name = err?.name || 'Error';
-      const msg = err?.message || String(err);
-      setError(`[${name}] ${msg}`);
+      if (err?.name === 'NotAllowedError') {
+        setError('Biometric prompt was cancelled or timed out. Please try again.');
+      } else if (err?.name === 'InvalidStateError') {
+        setError('This device is already enrolled. You only need to enrol once.');
+      } else if (err?.name === 'SecurityError') {
+        setError('Security error: domain mismatch. Contact support.');
+      } else {
+        const msg = err?.message || String(err);
+        setError(`[${err?.name ?? 'Error'}] ${msg}`);
+      }
     } finally {
       setLoading(false);
     }
