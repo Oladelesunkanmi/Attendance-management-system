@@ -18,10 +18,10 @@ export function getWebauthnConfig(req?: Request, explicitRpID?: string, explicit
     if (originHeader) {
       try {
         const parsed = new URL(originHeader);
-        if (!derivedOrigin || (derivedOrigin.includes('localhost') && !parsed.hostname.includes('localhost'))) {
+        if (!derivedOrigin || derivedOrigin.includes('localhost') || !derivedOrigin.startsWith('http')) {
           derivedOrigin = parsed.origin;
         }
-        if (!derivedRpID || (derivedRpID === 'localhost' && parsed.hostname !== 'localhost')) {
+        if (!derivedRpID || derivedRpID === 'localhost') {
           derivedRpID = parsed.hostname;
         }
       } catch {
@@ -35,3 +35,4 @@ export function getWebauthnConfig(req?: Request, explicitRpID?: string, explicit
 
   return { rpID, origin, rpName };
 }
+

@@ -29,13 +29,18 @@ export async function callEdgeFunction<T>(
 
   if (error) {
     let errorMsg = error.message;
-    // Extract custom JSON error if returned from Edge Function
-    if ((error as any).context?.json) {
+    // Extract custom JSON error if returned from Edge Function Response
+    const contextResponse = (error as any).context;
+    if (contextResponse) {
       try {
-        const errJson = await (error as any).context.json();
-        if (errJson?.error) errorMsg = errJson.error;
+        const resObj = typeof contextResponse.clone === 'function' ? contextResponse.clone() : contextResponse;
+        if (typeof resObj.json === 'function') {
+          const errJson = await resObj.json();
+          if (errJson?.error) errorMsg = errJson.error;
+          else if (errJson?.message) errorMsg = errJson.message;
+        }
       } catch {
-        // ignore fallback
+        // ignore fallback to error.message
       }
     }
     throw new Error(errorMsg || `Edge Function "${name}" failed. Make sure it is deployed to Supabase.`);

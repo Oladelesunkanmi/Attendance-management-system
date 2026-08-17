@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     }
 
     const secret = Deno.env.get('QR_JWT_SECRET');
-    if (!secret) return jsonResponse({ error: 'Server misconfigured' }, 500);
+    if (!secret) return jsonResponse({ error: 'Server misconfigured: QR_JWT_SECRET secret is missing on Supabase' }, 500);
 
     let sessionId: string;
     let jti: string;
