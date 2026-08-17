@@ -39,7 +39,8 @@ Deno.serve(async (req) => {
         // devices will use fingerprint/Face ID / device PIN instead of
         // suggesting a roaming USB security key.
         authenticatorSelection: {
-          userVerification: 'preferred',
+          authenticatorAttachment: 'platform',
+          userVerification: 'required',
           residentKey: 'preferred',
         },
         excludeCredentials: [],
