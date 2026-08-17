@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
       const options = await generateAuthenticationOptions({
         rpID,
-        userVerification: 'required',
+        userVerification: 'preferred',
         allowCredentials: credentials.map((cred) => ({
           id: cred.credential_id,
           type: 'public-key' as const,

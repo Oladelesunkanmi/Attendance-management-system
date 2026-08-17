@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
         // suggesting a roaming USB security key.
         authenticatorSelection: {
           authenticatorAttachment: 'platform',
-          userVerification: 'required',
+          userVerification: 'preferred',
           residentKey: 'preferred',
         },
         excludeCredentials: (existing ?? []).map((cred) => ({
