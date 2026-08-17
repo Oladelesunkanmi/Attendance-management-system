@@ -50,7 +50,7 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
-      // Direct platform biometric enrollment (hardware bound to this device)
+      // Enforce strict built-in platform authenticator (Fingerprint / Face ID / Touch ID)
       options.authenticatorSelection = {
         authenticatorAttachment: 'platform',
         userVerification: 'required',
@@ -80,6 +80,10 @@ export default function EnrolWebAuthnPage() {
         setError('Biometric prompt was cancelled or timed out. Please try again.');
       } else if (err?.name === 'InvalidStateError') {
         setError('This device is already enrolled. You only need to enrol once.');
+      } else if (err?.name === 'NotReadableError') {
+        setError(
+          'Fingerprint / Face ID required: Please set up a Fingerprint, Face ID, or Windows Hello / screen lock PIN in your device settings first, then try again.',
+        );
       } else if (err?.name === 'SecurityError') {
         setError('Security error: domain mismatch. Contact support.');
       } else {

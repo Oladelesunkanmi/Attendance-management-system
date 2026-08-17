@@ -81,8 +81,7 @@ export default function CheckInPage() {
         { step: 'options', rpID: currentRpId, origin: currentOrigin },
       );
 
-      // Force platform authenticator only (fingerprint / Face ID on the device).
-      // Cross-device (USB keys, phones via Bluetooth) are explicitly excluded.
+      // Enforce strict built-in platform authenticator (Fingerprint / Face ID / Touch ID)
       options.authenticatorSelection = {
         authenticatorAttachment: 'platform',
         userVerification: 'required',
@@ -108,6 +107,10 @@ export default function CheckInPage() {
         setEnrolError('Biometric prompt was cancelled or timed out. Please try again.');
       } else if (err?.name === 'InvalidStateError') {
         setEnrolError('This device is already registered. You only need to enrol once.');
+      } else if (err?.name === 'NotReadableError') {
+        setEnrolError(
+          'Fingerprint / Face ID required: Please set up a Fingerprint, Face ID, or Windows Hello / screen lock PIN in your device settings first, then try again.',
+        );
       } else if (err?.name === 'SecurityError') {
         setEnrolError('Security error: the app domain does not match the expected origin. Contact support.');
       } else {
