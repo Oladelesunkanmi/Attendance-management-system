@@ -39,14 +39,10 @@ Deno.serve(async (req) => {
         // devices will use fingerprint/Face ID / device PIN instead of
         // suggesting a roaming USB security key.
         authenticatorSelection: {
-          authenticatorAttachment: 'platform',
           userVerification: 'preferred',
           residentKey: 'preferred',
         },
-        excludeCredentials: (existing ?? []).map((cred) => ({
-          id: cred.credential_id,
-          type: 'public-key' as const,
-        })),
+        excludeCredentials: [],
       });
 
       await serviceClient.from('webauthn_challenges').insert({
