@@ -50,18 +50,6 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
-      // Enforce strict built-in platform authenticator (Fingerprint / Face ID / Touch ID)
-      options.authenticatorSelection = {
-        authenticatorAttachment: 'platform',
-        userVerification: 'required',
-        residentKey: 'preferred',
-      };
-
-      // Client-side safeguard: Ensure options.rp.id matches current domain
-      if (options.rp && currentRpId !== 'localhost') {
-        options.rp.id = currentRpId;
-      }
-
       const attestationResponse = await startRegistration({ optionsJSON: options });
 
       await callEdgeFunction('webauthn-register', {

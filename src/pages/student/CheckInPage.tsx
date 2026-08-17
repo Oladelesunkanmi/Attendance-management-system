@@ -81,16 +81,6 @@ export default function CheckInPage() {
         { step: 'options', rpID: currentRpId, origin: currentOrigin },
       );
 
-      // Enforce strict built-in platform authenticator (Fingerprint / Face ID / Touch ID)
-      options.authenticatorSelection = {
-        authenticatorAttachment: 'platform',
-        userVerification: 'required',
-        residentKey: 'preferred',
-      };
-
-      // Ensure rp.id matches the current domain
-      if (options.rp && currentRpId !== 'localhost') options.rp.id = currentRpId;
-
       const attestationResponse = await startRegistration({ optionsJSON: options });
       await callEdgeFunction('webauthn-register', {
         step: 'verify',
