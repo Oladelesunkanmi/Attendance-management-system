@@ -50,6 +50,16 @@ export default function EnrolWebAuthnPage() {
         },
       );
 
+      // Diagnostic: log non-sensitive options to verify authenticatorSelection reaches browser
+      console.log('[WebAuthn] Registration options received:', {
+        rpId: options.rp?.id,
+        rpName: options.rp?.name,
+        authenticatorSelection: options.authenticatorSelection,
+        timeout: options.timeout,
+        attestation: options.attestation,
+        excludeCredentials: options.excludeCredentials?.length ?? 0,
+      });
+
       const attestationResponse = await startRegistration({ optionsJSON: options });
 
       await callEdgeFunction('webauthn-register', {
@@ -63,14 +73,25 @@ export default function EnrolWebAuthnPage() {
       setStatus('Biometric enrolment complete! Your device passkey is now registered.');
       setPin('');
     } catch (err: any) {
-      console.error('Enrolment error detail:', err);
+      // Log full error details for diagnosis — no secrets/credentials/biometrics logged
+      console.error('Enrolment error detail:', {
+        name: err?.name,
+        message: err?.message,
+        code: err?.code,
+        cause: err?.cause ? { name: err.cause.name, message: err.cause.message } : undefined,
+        stack: err?.stack,
+      });
       if (err?.name === 'NotAllowedError') {
         setError('Biometric prompt was cancelled or timed out. Please try again.');
       } else if (err?.name === 'InvalidStateError') {
         setError('This device is already enrolled. You only need to enrol once.');
       } else if (err?.name === 'NotReadableError') {
         setError(
-          'Fingerprint / Face ID required: Please set up a Fingerprint, Face ID, or Windows Hello / screen lock PIN in your device settings first, then try again.',
+          'Your device could not create a passkey. Please verify: ' +
+          '(1) Screen lock PIN/pattern/password is set in Android Settings → Security, ' +
+          '(2) Google Play Services is up to date, ' +
+          '(3) Google Password Manager is enabled in Settings → Google → All Services → Passwords & Accounts. ' +
+          'Then try again.',
         );
       } else if (err?.name === 'SecurityError') {
         setError('Security error: domain mismatch. Contact support.');

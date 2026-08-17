@@ -91,7 +91,13 @@ export default function CheckInPage() {
       setEnrolStatus('Biometric enrolled! You can now check in with Face ID / Fingerprint.');
       setHasCredential(true);
     } catch (err: any) {
-      console.error('Enrolment error:', err?.name, err?.message, err);
+      // Log full error details for diagnosis — no secrets/credentials/biometrics logged
+      console.error('Enrolment error:', {
+        name: err?.name,
+        message: err?.message,
+        code: err?.code,
+        cause: err?.cause ? { name: err.cause.name, message: err.cause.message } : undefined,
+      });
       // Give actionable messages for common WebAuthn errors
       if (err?.name === 'NotAllowedError') {
         setEnrolError('Biometric prompt was cancelled or timed out. Please try again.');
@@ -99,7 +105,11 @@ export default function CheckInPage() {
         setEnrolError('This device is already registered. You only need to enrol once.');
       } else if (err?.name === 'NotReadableError') {
         setEnrolError(
-          'Fingerprint / Face ID required: Please set up a Fingerprint, Face ID, or Windows Hello / screen lock PIN in your device settings first, then try again.',
+          'Your device could not create a passkey. Please verify: ' +
+          '(1) Screen lock PIN/pattern/password is set in Android Settings → Security, ' +
+          '(2) Google Play Services is up to date, ' +
+          '(3) Google Password Manager is enabled in Settings → Google → All Services → Passwords & Accounts. ' +
+          'Then try again.',
         );
       } else if (err?.name === 'SecurityError') {
         setEnrolError('Security error: the app domain does not match the expected origin. Contact support.');
