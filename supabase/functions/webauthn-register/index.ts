@@ -4,7 +4,7 @@ import {
 } from 'npm:@simplewebauthn/server@11';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireStudent } from '../_shared/auth.ts';
-import { getWebauthnConfig } from '../_shared/webauthn.ts';
+import { getWebauthnConfig, encodeBytea } from '../_shared/webauthn.ts';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
         {
           student_id: profile.id,
           credential_id: credential.id,
-          public_key: credential.publicKey,
+          public_key: encodeBytea(credential.publicKey),
           counter: credential.counter,
           aaguid,
           device_attestation_id: credentialDeviceType,
@@ -214,6 +214,7 @@ Deno.serve(async (req) => {
     } catch (logErr) {
       console.error('webauthn-register logging failure', logErr);
     }
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    const errorDetails = (err as any)?.message || String(err);
+    return jsonResponse({ error: errorDetails || 'Internal server error' }, 500);
   }
 });

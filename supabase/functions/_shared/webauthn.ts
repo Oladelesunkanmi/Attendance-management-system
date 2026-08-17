@@ -36,3 +36,25 @@ export function getWebauthnConfig(req?: Request, explicitRpID?: string, explicit
   return { rpID, origin, rpName };
 }
 
+/**
+ * Encodes a Uint8Array into a PostgreSQL bytea hex string (`\x...`).
+ * Required for Supabase PostgREST JSON payloads.
+ */
+export function encodeBytea(bytes: Uint8Array): string {
+  return '\\x' + Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Parses a bytea value returned by Supabase PostgREST (hex string or Array) back into Uint8Array.
+ */
+export function parseBytea(val: unknown): Uint8Array {
+  if (val instanceof Uint8Array) return val;
+  if (Array.isArray(val)) return new Uint8Array(val);
+  if (typeof val === 'string') {
+    const clean = val.replace(/^\\x|^x/i, '');
+    const matches = clean.match(/.{1,2}/g);
+    return matches ? new Uint8Array(matches.map((b) => parseInt(b, 16))) : new Uint8Array();
+  }
+  return new Uint8Array();
+}
+

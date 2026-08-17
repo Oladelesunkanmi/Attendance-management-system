@@ -4,7 +4,7 @@ import { handleCors, jsonResponse } from '../_shared/cors.ts';
 import { requireStudent } from '../_shared/auth.ts';
 import { distanceMeters, evaluateGpsFlags } from '../_shared/haversine.ts';
 import { checkRateLimit } from '../_shared/rate-limit.ts';
-import { getWebauthnConfig } from '../_shared/webauthn.ts';
+import { getWebauthnConfig, parseBytea } from '../_shared/webauthn.ts';
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -151,7 +151,7 @@ Deno.serve(async (req) => {
         expectedRPID: rpID,
         credential: {
           id: credential.credential_id,
-          publicKey: new Uint8Array(credential.public_key),
+          publicKey: parseBytea(credential.public_key),
           counter: Number(credential.counter),
         },
       });
