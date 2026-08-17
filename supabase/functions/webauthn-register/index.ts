@@ -30,10 +30,8 @@ Deno.serve(async (req) => {
       const options = await generateRegistrationOptions({
         rpName,
         rpID,
-        // `userID` must be a string identifier. Passing an ArrayBuffer/Uint8Array
-        // (via TextEncoder) causes JSON serialization issues and breaks some
-        // client runtimes. Use the profile UUID string instead.
-        userID: profile.id,
+        // `userID` must be a Uint8Array in @simplewebauthn/server v11+
+        userID: new TextEncoder().encode(profile.id),
         userName: profile.matric_number ?? profile.id,
         userDisplayName: profile.full_name,
         attestationType: 'none',
