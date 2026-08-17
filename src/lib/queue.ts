@@ -4,9 +4,9 @@ import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 export interface QueuedCheckIn {
   id?: number;
   qrToken: string;
-  latitude: number;
-  longitude: number;
-  gpsAccuracy: number | null;
+  latitude?: number;
+  longitude?: number;
+  gpsAccuracy?: number | null;
   assertionResponse?: AuthenticationResponseJSON;
   timestamp: number;
 }

@@ -26,8 +26,10 @@ Deno.serve(async (req) => {
       assertionResponse,
     } = body;
 
-    if (!qrToken || latitude == null || longitude == null) {
-      return jsonResponse({ error: 'Missing required check-in fields' }, 400);
+    // Only qrToken is required up-front. mode-specific fields are validated after
+    // we fetch the session and know the session.verification_mode.
+    if (!qrToken) {
+      return jsonResponse({ error: 'Missing required check-in fields: qrToken' }, 400);
     }
 
     const secret = Deno.env.get('QR_JWT_SECRET');
@@ -95,11 +97,21 @@ Deno.serve(async (req) => {
     };
 
     let distance = 0;
-    let flaggedReason: string | null = evaluateGpsFlags(gpsAccuracy);
+    let flaggedReason: string | null = null; // Evaluate only when GPS is collected
     let webauthnVerified = false;
     const mode = session.verification_mode as 'qr_only' | 'qr_geofence' | 'full';
 
+    // Mode-based validation & evaluation
     if (mode !== 'qr_only') {
+      // Require latitude/longitude for geofence or full modes
+      if (latitude == null || longitude == null) {
+        return jsonResponse({ error: 'latitude and longitude are required for this session verification mode' }, 400);
+      }
+
+      // Evaluate GPS accuracy flags (only when GPS was provided)
+      flaggedReason = evaluateGpsFlags(gpsAccuracy);
+
+      // Compute distance and apply geofence logic
       distance = distanceMeters(
         latitude,
         longitude,
@@ -190,10 +202,11 @@ Deno.serve(async (req) => {
       .insert({
         session_id: sessionId,
         student_id: profile.id,
-        latitude,
-        longitude,
+        // Only persist GPS when the mode required GPS; otherwise store NULL
+        latitude: mode === 'qr_only' ? null : latitude,
+        longitude: mode === 'qr_only' ? null : longitude,
         distance_meters: distance,
-        gps_accuracy_meters: gpsAccuracy ?? null,
+        gps_accuracy_meters: mode === 'qr_only' ? null : (gpsAccuracy ?? null),
         webauthn_verified: webauthnVerified,
         flagged_reason: flaggedReason,
       })

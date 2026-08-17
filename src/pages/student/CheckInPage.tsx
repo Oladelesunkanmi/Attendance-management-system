@@ -28,13 +28,13 @@ type AttendanceItem = {
   } | null;
 };
 
-type CheckInStep = 'idle' | 'scanning' | 'gps' | 'biometric' | 'submitting' | 'success' | 'queued';
+type CheckInStep = 'idle' | 'scanning' | 'fetching_mode' | 'gps' | 'biometric' | 'submitting' | 'success' | 'queued';
 
 export default function CheckInPage() {
   const { profile } = useAuth();
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
-  // ── Scanner state ──────────────────────────────────────────────────────────
+  // ── Scanner state ────────────────────────────────────────────────────────��[...]
   const [isScanning, setIsScanning] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -46,6 +46,8 @@ export default function CheckInPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<{ flagged: boolean; message: string } | null>(null);
+  // verification mode fetched after decoding QR token
+  const [verificationMode, setVerificationMode] = useState<'qr_only' | 'qr_geofence' | 'full' | null>(null);
 
   // ── Student Stats & Records ────────────────────────────────────────────────
   const [hasCredential, setHasCredential] = useState<boolean | null>(null);
@@ -295,63 +297,94 @@ export default function CheckInPage() {
     setLastResult(null);
 
     try {
-      // 1. GPS Position Stage
-      setStep('gps');
-      setStatus('Acquiring high-accuracy GPS fix…');
-      const position = await getStablePosition(2);
-
-      // 2. WebAuthn Biometric Stage
-      setStep('biometric');
-      setStatus('Authenticating device passkey (Touch ID / Face ID)…');
-
-      const currentRpId = window.location.hostname;
-      const currentOrigin = window.location.origin;
-
-      let options: PublicKeyCredentialRequestOptionsJSON | undefined;
+      // 0. Decode QR JWT client-side (no trust) to extract session_id so we can fetch the session mode
+      setStep('fetching_mode');
+      setStatus('Reading session verification mode…');
+      let sessionId: string | undefined;
       try {
-        const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>(
-          'webauthn-authenticate',
-          {
-            step: 'options',
-            rpID: currentRpId,
-            origin: currentOrigin,
-          },
-        );
-        options = res.options;
+        const parts = qrToken.split('.');
+        if (parts.length !== 3) throw new Error('Invalid QR token format');
+        const payload = JSON.parse(atob(parts[1]));
+        sessionId = payload.session_id as string;
+        if (!sessionId) throw new Error('Missing session_id in QR token');
+      } catch (decodeErr) {
+        throw new Error('Failed to decode QR token');
+      }
 
-        if (options) {
-          options.userVerification = 'required';
-          if (currentRpId !== 'localhost') {
-            options.rpId = currentRpId;
-          }
+      // Fetch session.verification_mode from Supabase
+      try {
+        const { data: session, error: sessErr } = await supabase
+          .from('sessions')
+          .select('verification_mode')
+          .eq('id', sessionId)
+          .single();
+        if (sessErr || !session) {
+          throw new Error('Unable to fetch session verification settings');
         }
+        setVerificationMode(session.verification_mode);
       } catch (err) {
-        if (!navigator.onLine) {
-          console.warn('Offline during webauthn options request');
-        } else {
-          throw err;
-        }
+        throw err;
+      }
+
+      const mode = verificationMode ?? (await supabase.from('sessions').select('verification_mode').eq('id', sessionId).single()).data.verification_mode;
+
+      // Collect only the data required by the mode
+      let position: GeolocationPosition | undefined;
+      if (mode !== 'qr_only') {
+        setStep('gps');
+        setStatus('Acquiring high-accuracy GPS fix…');
+        position = await getStablePosition(2);
       }
 
       let assertionResponse: AuthenticationResponseJSON | undefined;
-      if (options) {
+      const currentRpId = window.location.hostname;
+      const currentOrigin = window.location.origin;
+      if (mode === 'full') {
+        setStep('biometric');
+        setStatus('Authenticating device passkey (Touch ID / Face ID)…');
+        // Request options only when biometric is needed
+        let options: PublicKeyCredentialRequestOptionsJSON | undefined;
         try {
-          assertionResponse = await startAuthentication({ optionsJSON: options });
-        } catch (biometricErr) {
-          console.warn('Biometric auth cancelled or failed:', biometricErr);
-          assertionResponse = undefined;
+          const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>('webauthn-authenticate', {
+            step: 'options',
+            rpID: currentRpId,
+            origin: currentOrigin,
+          });
+          options = res.options;
+          if (options) {
+            options.userVerification = 'required';
+            if (currentRpId !== 'localhost') options.rpId = currentRpId;
+          }
+        } catch (err) {
+          if (!navigator.onLine) {
+            console.warn('Offline during webauthn options request');
+          } else {
+            throw err;
+          }
+        }
+
+        if (options) {
+          try {
+            assertionResponse = await startAuthentication({ optionsJSON: options });
+          } catch (biometricErr) {
+            console.warn('Biometric auth cancelled or failed:', biometricErr);
+            assertionResponse = undefined;
+          }
         }
       }
 
-      const checkInPayload = {
-        qrToken,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        gpsAccuracy: position.coords.accuracy,
-        assertionResponse,
-        rpID: currentRpId,
-        origin: currentOrigin,
-      };
+      // Build payload dynamically
+      const checkInPayload: any = { qrToken };
+      if (position) {
+        checkInPayload.latitude = position.coords.latitude;
+        checkInPayload.longitude = position.coords.longitude;
+        checkInPayload.gpsAccuracy = position.coords.accuracy;
+      }
+      if (assertionResponse) {
+        checkInPayload.assertionResponse = assertionResponse;
+        checkInPayload.rpID = currentRpId;
+        checkInPayload.origin = currentOrigin;
+      }
 
       // 3. Submitting to server (or queueing if offline)
       setStep('submitting');
@@ -414,11 +447,66 @@ export default function CheckInPage() {
   const flaggedCount = history.filter((h) => h.flagged_reason).length;
   const verifiedRate = totalAttended > 0 ? Math.round((verifiedCount / totalAttended) * 100) : 100;
 
+  // Helper to render pipeline steps based on verificationMode
+  function renderPipeline() {
+    if (verificationMode == null && step === 'fetching_mode') {
+      return (
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Verification Pipeline</p>
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center gap-2.5 text-blue-600 font-bold">
+              <span>⏳</span>
+              <span>Reading session verification mode…</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const mode = verificationMode ?? 'qr_only';
+    const stepsForMode: string[] = mode === 'qr_only' ? ['qr', 'server'] : mode === 'qr_geofence' ? ['qr', 'gps', 'server'] : ['qr', 'gps', 'biometric', 'server'];
+
+    return (
+      <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+        <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Verification Pipeline</p>
+        <div className="space-y-2 text-xs">
+          {stepsForMode.map((s, idx) => {
+            // determine icon and classes based on current `step`
+            let icon = '○';
+            let classes = '';
+            if (s === 'qr') {
+              icon = '✓';
+              classes = 'text-emerald-700 font-semibold';
+            } else if (s === 'gps') {
+              if (step === 'gps') { icon = '⏳'; classes = 'text-blue-600 font-bold animate-pulse'; }
+              else if (['biometric', 'submitting', 'success', 'queued'].includes(step)) { icon = '✓'; classes = 'text-emerald-700 font-semibold'; }
+            } else if (s === 'biometric') {
+              if (step === 'biometric') { icon = '⏳'; classes = 'text-blue-600 font-bold animate-pulse'; }
+              else if (['submitting', 'success', 'queued'].includes(step)) { icon = '✓'; classes = 'text-emerald-700 font-semibold'; }
+            } else if (s === 'server') {
+              if (step === 'submitting') { icon = '⏳'; classes = 'text-blue-600 font-bold animate-pulse'; }
+              else if (['success', 'queued'].includes(step)) { icon = '✓'; classes = 'text-emerald-700 font-semibold'; }
+            }
+
+            const label = s === 'qr' ? `${idx + 1}. QR Token Scanned & Decoded` : s === 'gps' ? `${idx + 1}. High-Accuracy GPS Fix & Geofence Check` : s === 'biometric' ? `${idx + 1}. WebAuthn Device-Bound Biometric Passkey` : `${idx + 1}. Final Server Confirmation & Nonce Consumption`;
+
+            return (
+              <div key={s} className={`flex items-center gap-2.5 ${classes}`}>
+                <span>{icon}</span>
+                <span>{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <StudentLayout
       title="Student Dashboard"
-      subtitle={`Welcome, ${profile?.full_name ?? 'Student'} (${profile?.matric_number ?? 'Matric Pending'})`}
-    >
+      subtitle={`Welcome, ${profile?.full_name ?? 'Student'} (${profile?.matric_number ?? 'Matric Pending'})`}>
+
       {/* ── Inline Biometric Enrolment Card (shown when not enrolled) ──── */}
       {hasCredential === false && (
         <div className="mb-6 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 shadow-lg shadow-blue-600/20">
@@ -426,7 +514,7 @@ export default function CheckInPage() {
             <div className="flex items-center gap-3.5">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 text-white border border-white/30">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0-1.657 1.343-3 3-3s3 1.343 3 3v1m-6 0h6m-9 4h12M5 7h14M5 7a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2M5 7V5a2 2 0 012-2h10a2 2 0 012 2v2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0-1.657 1.343-3 3-3s3 1.343 3 3v1m-6 0h6m-9 4h12M5 7h14M5 7a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2[...]" />
                 </svg>
               </div>
               <div>
@@ -547,7 +635,7 @@ export default function CheckInPage() {
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-900/90 text-white space-y-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30">
                     <svg className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-[...]" />
                     </svg>
                   </div>
                   <div>
@@ -565,10 +653,10 @@ export default function CheckInPage() {
               {!isScanning ? (
                 <button
                   onClick={startScanner}
-                  className="flex-1 rounded-xl bg-blue-600 py-3.5 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 active:scale-[0.99] transition flex items-center justify-center gap-2"
+                  className="flex-1 rounded-xl bg-blue-600 py-3.5 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 active:scale-[0.99] transition flex items-center[...]
                 >
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0[...]" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   <span>Start QR Scanner</span>
@@ -620,7 +708,7 @@ export default function CheckInPage() {
                 <button
                   onClick={handleCheckIn}
                   disabled={step !== 'idle' && step !== 'scanning'}
-                  className="w-full rounded-xl bg-blue-600 py-3 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full rounded-xl bg-blue-600 py-3 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.99] transition flex items-center j[...]"
                 >
                   <span>{step === 'idle' || step === 'scanning' ? 'Complete Check-In Now →' : 'Processing Check-in…'}</span>
                 </button>
@@ -628,40 +716,11 @@ export default function CheckInPage() {
             )}
 
             {/* ── Multi-Stage Live Check-In Progress Indicators ─────────── */}
-            {step !== 'idle' && step !== 'scanning' && (
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Verification Pipeline</p>
-                <div className="space-y-2 text-xs">
-                  {/* Step 1: QR */}
-                  <div className="flex items-center gap-2.5 text-emerald-700 font-semibold">
-                    <span>✓</span>
-                    <span>1. QR Token Scanned & Decoded</span>
-                  </div>
-
-                  {/* Step 2: GPS */}
-                  <div className={`flex items-center gap-2.5 ${step === 'gps' ? 'text-blue-600 font-bold animate-pulse' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'gps' ? '⏳' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>2. High-Accuracy GPS Fix & Geofence Check</span>
-                  </div>
-
-                  {/* Step 3: WebAuthn */}
-                  <div className={`flex items-center gap-2.5 ${step === 'biometric' ? 'text-blue-600 font-bold animate-pulse' : step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'biometric' ? '⏳' : step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>3. WebAuthn Device-Bound Biometric Passkey</span>
-                  </div>
-
-                  {/* Step 4: Server submission */}
-                  <div className={`flex items-center gap-2.5 ${step === 'submitting' ? 'text-blue-600 font-bold animate-pulse' : step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'submitting' ? '⏳' : step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>4. Final Server Confirmation & Nonce Consumption</span>
-                  </div>
-                </div>
-              </div>
-            )}
+            {step !== 'idle' && step !== 'scanning' && renderPipeline()}
 
             {/* Success result banner */}
             {lastResult && (
-              <div className={`rounded-xl p-4 text-xs font-semibold flex items-start gap-2.5 ${lastResult.flagged ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
+              <div className={`rounded-xl p-4 text-xs font-semibold flex items-start gap-2.5 ${lastResult.flagged ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emer[...]`}>
                 <span className="text-base">{lastResult.flagged ? '⚠️' : '🎉'}</span>
                 <div>
                   <p className="font-bold">{lastResult.flagged ? 'Check-in Recorded with Flags' : 'Check-in Successful!'}</p>
