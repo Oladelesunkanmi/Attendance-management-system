@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient, User } from 'npm:@supabase/supabase-js@2';
+import { jsonResponse } from './cors.ts';
 
 export type AuthContext = {
   user: User;
@@ -28,10 +29,7 @@ export function createServiceClient() {
 export async function requireAuth(req: Request): Promise<AuthContext> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
-    throw new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    throw jsonResponse({ error: 'Missing authorization header' }, 401);
   }
 
   const token = authHeader.replace('Bearer ', '');
@@ -43,10 +41,7 @@ export async function requireAuth(req: Request): Promise<AuthContext> {
 
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
-    throw new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    throw jsonResponse({ error: 'Invalid or expired token' }, 401);
   }
 
   const serviceClient = createServiceClient();
@@ -57,10 +52,7 @@ export async function requireAuth(req: Request): Promise<AuthContext> {
     .single();
 
   if (profileError || !profile) {
-    throw new Response(JSON.stringify({ error: 'Profile not found' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    throw jsonResponse({ error: 'Profile not found' }, 403);
   }
 
   return { user, profile, supabase, serviceClient };
@@ -69,10 +61,7 @@ export async function requireAuth(req: Request): Promise<AuthContext> {
 export async function requireLecturer(req: Request): Promise<AuthContext> {
   const ctx = await requireAuth(req);
   if (ctx.profile.role !== 'lecturer') {
-    throw new Response(JSON.stringify({ error: 'Lecturer access required' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    throw jsonResponse({ error: 'Lecturer access required' }, 403);
   }
   return ctx;
 }
@@ -80,10 +69,7 @@ export async function requireLecturer(req: Request): Promise<AuthContext> {
 export async function requireStudent(req: Request): Promise<AuthContext> {
   const ctx = await requireAuth(req);
   if (ctx.profile.role !== 'student') {
-    throw new Response(JSON.stringify({ error: 'Student access required' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    throw jsonResponse({ error: 'Student access required' }, 403);
   }
   return ctx;
 }
