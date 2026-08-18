@@ -332,12 +332,14 @@ export default function CheckInPage() {
       if (sessErr || !session) {
         throw new Error('Unable to fetch session verification settings');
       }
-      setVerificationMode(session.verification_mode);
-      const mode = session.verification_mode as 'qr_only' | 'qr_geofence' | 'full';
+      // Default to 'qr_only' if the session record does not include a verification_mode
+      setVerificationMode(session.verification_mode ?? 'qr_only');
+      const mode = (session.verification_mode ?? 'qr_only') as 'qr_only' | 'qr_geofence' | 'full';
 
       // Collect only the data required by the mode
       let position: GeolocationPosition | undefined;
-      if (mode !== 'qr_only') {
+      // Explicitly request GPS only for geofence or full modes
+      if (mode === 'qr_geofence' || mode === 'full') {
         setStep('gps');
         setStatus('Acquiring high-accuracy GPS fix…');
         position = await getStablePosition(2);
@@ -495,7 +497,7 @@ export default function CheckInPage() {
               else if (['success', 'queued'].includes(step)) { icon = '✓'; classes = 'text-emerald-700 font-semibold'; }
             }
 
-            const label = s === 'qr' ? `${idx + 1}. QR Token Scanned & Decoded` : s === 'gps' ? `${idx + 1}. High-Accuracy GPS Fix & Geofence Check` : s === 'biometric' ? `${idx + 1}. WebAuthn De[...];
+            const label = s === 'qr' ? `${idx + 1}. QR Token Scanned & Decoded` : s === 'gps' ? `${idx + 1}. High-Accuracy GPS Fix & Geofence Check` : s === 'biometric' ? `${idx + 1}. WebAuthn De[...]
 
             return (
               <div key={s} className={`flex items-center gap-2.5 ${classes}`}>
