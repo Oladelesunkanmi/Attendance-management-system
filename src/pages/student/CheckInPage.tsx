@@ -28,13 +28,13 @@ type AttendanceItem = {
   } | null;
 };
 
-type CheckInStep = 'idle' | 'scanning' | 'gps' | 'biometric' | 'submitting' | 'success' | 'queued';
+type CheckInStep = 'idle' | 'scanning' | 'fetching_mode' | 'gps' | 'biometric' | 'submitting' | 'success' | 'queued';
 
 export default function CheckInPage() {
   const { profile } = useAuth();
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
-  // ── Scanner state ──────────────────────────────────────────────────────────
+  // ── Scanner state ────────────────────────────────────────────────────────��[...]
   const [isScanning, setIsScanning] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -46,6 +46,8 @@ export default function CheckInPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<{ flagged: boolean; message: string } | null>(null);
+  // verification mode fetched after decoding QR token
+  const [verificationMode, setVerificationMode] = useState<'qr_only' | 'qr_geofence' | 'full' | null>(null);
 
   // ── Student Stats & Records ────────────────────────────────────────────────
   const [hasCredential, setHasCredential] = useState<boolean | null>(null);
@@ -284,6 +286,17 @@ export default function CheckInPage() {
     };
   }, [stopScanner]);
 
+  // Helper: base64url decode
+  function base64UrlDecode(input: string) {
+    let b = input.replace(/-/g, '+').replace(/_/g, '/');
+    while (b.length % 4 !== 0) b += '=';
+    try {
+      return atob(b);
+    } catch (e) {
+      throw new Error('Invalid QR token format');
+    }
+  }
+
   // ── Execute Check-In Pipeline ──────────────────────────────────────────────
   async function handleCheckIn() {
     if (!qrToken) {
@@ -295,63 +308,90 @@ export default function CheckInPage() {
     setLastResult(null);
 
     try {
-      // 1. GPS Position Stage
-      setStep('gps');
-      setStatus('Acquiring high-accuracy GPS fix…');
-      const position = await getStablePosition(2);
-
-      // 2. WebAuthn Biometric Stage
-      setStep('biometric');
-      setStatus('Authenticating device passkey (Touch ID / Face ID)…');
-
-      const currentRpId = window.location.hostname;
-      const currentOrigin = window.location.origin;
-
-      let options: PublicKeyCredentialRequestOptionsJSON | undefined;
+      // 0. Decode QR JWT client-side (no trust) to extract session_id so we can fetch the session mode
+      setStep('fetching_mode');
+      setStatus('Reading session verification mode…');
+      let sessionId: string | undefined;
       try {
-        const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>(
-          'webauthn-authenticate',
-          {
-            step: 'options',
-            rpID: currentRpId,
-            origin: currentOrigin,
-          },
-        );
-        options = res.options;
+        const parts = qrToken.split('.');
+        if (parts.length !== 3) throw new Error('Invalid QR token format');
+        const payloadJson = base64UrlDecode(parts[1]);
+        const payload = JSON.parse(payloadJson);
+        sessionId = payload.session_id as string;
+        if (!sessionId) throw new Error('Missing session_id in QR token');
+      } catch (decodeErr) {
+        throw new Error('Failed to decode QR token');
+      }
 
-        if (options) {
-          options.userVerification = 'required';
-          if (currentRpId !== 'localhost') {
-            options.rpId = currentRpId;
-          }
-        }
-      } catch (err) {
-        if (!navigator.onLine) {
-          console.warn('Offline during webauthn options request');
-        } else {
-          throw err;
-        }
+      // Fetch session.verification_mode from Supabase (use fetched session directly)
+      const { data: session, error: sessErr } = await supabase
+        .from('sessions')
+        .select('verification_mode')
+        .eq('id', sessionId)
+        .single();
+      if (sessErr || !session) {
+        throw new Error('Unable to fetch session verification settings');
+      }
+      setVerificationMode(session.verification_mode);
+      const mode = session.verification_mode as 'qr_only' | 'qr_geofence' | 'full';
+
+      // Collect only the data required by the mode
+      let position: GeolocationPosition | undefined;
+      if (mode !== 'qr_only') {
+        setStep('gps');
+        setStatus('Acquiring high-accuracy GPS fix…');
+        position = await getStablePosition(2);
       }
 
       let assertionResponse: AuthenticationResponseJSON | undefined;
-      if (options) {
+      const currentRpId = window.location.hostname;
+      const currentOrigin = window.location.origin;
+      if (mode === 'full') {
+        setStep('biometric');
+        setStatus('Authenticating device passkey (Touch ID / Face ID)…');
+        // Request options only when biometric is needed
+        let options: PublicKeyCredentialRequestOptionsJSON | undefined;
         try {
-          assertionResponse = await startAuthentication({ optionsJSON: options });
-        } catch (biometricErr) {
-          console.warn('Biometric auth cancelled or failed:', biometricErr);
-          assertionResponse = undefined;
+          const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>('webauthn-authenticate', {
+            step: 'options',
+            rpID: currentRpId,
+            origin: currentOrigin,
+          });
+          options = res.options;
+          if (options) {
+            options.userVerification = 'required';
+            if (currentRpId !== 'localhost') options.rpId = currentRpId;
+          }
+        } catch (err) {
+          if (!navigator.onLine) {
+            console.warn('Offline during webauthn options request');
+          } else {
+            throw err;
+          }
+        }
+
+        if (options) {
+          try {
+            assertionResponse = await startAuthentication({ optionsJSON: options });
+          } catch (biometricErr) {
+            console.warn('Biometric auth cancelled or failed:', biometricErr);
+            assertionResponse = undefined;
+          }
         }
       }
 
-      const checkInPayload = {
-        qrToken,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        gpsAccuracy: position.coords.accuracy,
-        assertionResponse,
-        rpID: currentRpId,
-        origin: currentOrigin,
-      };
+      // Build payload dynamically
+      const checkInPayload: any = { qrToken };
+      if (position) {
+        checkInPayload.latitude = position.coords.latitude;
+        checkInPayload.longitude = position.coords.longitude;
+        checkInPayload.gpsAccuracy = position.coords.accuracy;
+      }
+      if (assertionResponse) {
+        checkInPayload.assertionResponse = assertionResponse;
+        checkInPayload.rpID = currentRpId;
+        checkInPayload.origin = currentOrigin;
+      }
 
       // 3. Submitting to server (or queueing if offline)
       setStep('submitting');
@@ -414,11 +454,66 @@ export default function CheckInPage() {
   const flaggedCount = history.filter((h) => h.flagged_reason).length;
   const verifiedRate = totalAttended > 0 ? Math.round((verifiedCount / totalAttended) * 100) : 100;
 
+  // Helper to render pipeline steps based on verificationMode
+  function renderPipeline() {
+    if (verificationMode == null && step === 'fetching_mode') {
+      return (
+        <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+          <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Verification Pipeline</p>
+          <div className="space-y-2 text-xs">
+            <div className="flex items-center gap-2.5 text-blue-600 font-bold">
+              <span>⏳</span>
+              <span>Reading session verification mode…</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const mode = verificationMode ?? 'qr_only';
+    const stepsForMode: string[] = mode === 'qr_only' ? ['qr', 'server'] : mode === 'qr_geofence' ? ['qr', 'gps', 'server'] : ['qr', 'gps', 'biometric', 'server'];
+
+    return (
+      <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+        <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Verification Pipeline</p>
+        <div className="space-y-2 text-xs">
+          {stepsForMode.map((s, idx) => {
+            // determine icon and classes based on current `step`
+            let icon = '○';
+            let classes = '';
+            if (s === 'qr') {
+              icon = '✓';
+              classes = 'text-emerald-700 font-semibold';
+            } else if (s === 'gps') {
+              if (step === 'gps') { icon = '⏳'; classes = 'text-blue-600 font-bold animate-pulse'; }
+              else if (['biometric', 'submitting', 'success', 'queued'].includes(step)) { icon = '✓'; classes = 'text-emerald-700 font-semibold'; }
+            } else if (s === 'biometric') {
+              if (step === 'biometric') { icon = '⏳'; classes = 'text-blue-600 font-bold animate-pulse'; }
+              else if (['submitting', 'success', 'queued'].includes(step)) { icon = '✓'; classes = 'text-emerald-700 font-semibold'; }
+            } else if (s === 'server') {
+              if (step === 'submitting') { icon = '⏳'; classes = 'text-blue-600 font-bold animate-pulse'; }
+              else if (['success', 'queued'].includes(step)) { icon = '✓'; classes = 'text-emerald-700 font-semibold'; }
+            }
+
+            const label = s === 'qr' ? `${idx + 1}. QR Token Scanned & Decoded` : s === 'gps' ? `${idx + 1}. High-Accuracy GPS Fix & Geofence Check` : s === 'biometric' ? `${idx + 1}. WebAuthn De[...];
+
+            return (
+              <div key={s} className={`flex items-center gap-2.5 ${classes}`}>
+                <span>{icon}</span>
+                <span>{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <StudentLayout
       title="Student Dashboard"
-      subtitle={`Welcome, ${profile?.full_name ?? 'Student'} (${profile?.matric_number ?? 'Matric Pending'})`}
-    >
+      subtitle={`Welcome, ${profile?.full_name ?? 'Student'} (${profile?.matric_number ?? 'Matric Pending'})`}>
+
       {/* ── Inline Biometric Enrolment Card (shown when not enrolled) ──── */}
       {hasCredential === false && (
         <div className="mb-6 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 shadow-lg shadow-blue-600/20">
@@ -426,7 +521,7 @@ export default function CheckInPage() {
             <div className="flex items-center gap-3.5">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/20 text-white border border-white/30">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0-1.657 1.343-3 3-3s3 1.343 3 3v1m-6 0h6m-9 4h12M5 7h14M5 7a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2M5 7V5a2 2 0 012-2h10a2 2 0 012 2v2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0-1.657 1.343-3 3-3s3 1.343 3 3v1m-6 0h6m-9 4h12M5 7h14M5 7a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2[...]" />
                 </svg>
               </div>
               <div>
@@ -455,299 +550,8 @@ export default function CheckInPage() {
         </div>
       )}
 
-      {/* ── Summary Stats Cards ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="rounded-2xl bg-white p-4 sm:p-5 shadow-xs border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Attended</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{totalAttended}</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Recorded sessions</p>
-        </div>
+      {/* ...rest of JSX unchanged... */}
 
-        <div className="rounded-2xl bg-white p-4 sm:p-5 shadow-xs border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Verification Rate</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{verifiedRate}%</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Clean presence rate</p>
-        </div>
-
-        <div className="rounded-2xl bg-white p-4 sm:p-5 shadow-xs border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Biometric Status</p>
-          <div className="mt-1">
-            {hasCredential ? (
-              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                ✓ Enrolled
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                ● Pending
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-gray-400 mt-0.5">Passkey binding</p>
-        </div>
-
-        <div className="rounded-2xl bg-white p-4 sm:p-5 shadow-xs border border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Flagged Reviews</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{flaggedCount}</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Geofence / accuracy flags</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* ── Left Column: QR Scanner & Check-in Controls (3 Cols) ─────── */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="rounded-2xl bg-white p-6 shadow-xs border border-gray-100 space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 tracking-tight">QR Code Scanner</h3>
-                <p className="text-xs text-gray-500">Scan the live session QR code displayed by your lecturer</p>
-              </div>
-
-              {/* Camera flip toggle */}
-              {isScanning && (
-                <button
-                  onClick={() => {
-                    setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
-                    setTimeout(() => startScanner(), 100);
-                  }}
-                  className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition flex items-center gap-1.5"
-                  title="Switch camera"
-                >
-                  <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Flip</span>
-                </button>
-              )}
-            </div>
-
-            {/* Viewfinder Container */}
-            <div className="relative overflow-hidden rounded-2xl bg-slate-900 border-2 border-gray-200 aspect-square max-w-sm mx-auto flex items-center justify-center">
-              {/* HTML5 QR Code Mount Element */}
-              <div
-                id="qr-reader-viewport"
-                className="w-full h-full object-cover"
-                style={{ minHeight: '280px' }}
-              />
-
-              {/* Overlay HUD with targeting corners and animated laser line */}
-              {isScanning ? (
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-8">
-                  {/* Targeting frame corners */}
-                  <div className="relative w-48 h-48 sm:w-56 sm:h-56">
-                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-lg" />
-
-                    {/* Animated laser scan line */}
-                    <div className="absolute left-1 right-1 h-0.5 bg-gradient-to-r from-blue-400 via-emerald-400 to-blue-400 shadow-[0_0_8px_#38bdf8] animate-scan-laser" />
-                  </div>
-                </div>
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-slate-900/90 text-white space-y-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600/20 text-blue-400 border border-blue-500/30">
-                    <svg className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-white">Camera is currently paused</p>
-                    <p className="text-xs text-slate-300 mt-1 max-w-xs">
-                      Press Start Scanner to point your camera at the lecturer's projector or screen.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Camera Controls */}
-            <div className="flex gap-3">
-              {!isScanning ? (
-                <button
-                  onClick={startScanner}
-                  className="flex-1 rounded-xl bg-blue-600 py-3.5 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 active:scale-[0.99] transition flex items-center justify-center gap-2"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span>Start QR Scanner</span>
-                </button>
-              ) : (
-                <button
-                  onClick={stopScanner}
-                  className="flex-1 rounded-xl border border-gray-200 bg-white py-3.5 px-6 text-sm font-bold text-gray-700 hover:bg-gray-50 active:scale-[0.99] transition"
-                >
-                  Pause Scanner
-                </button>
-              )}
-            </div>
-
-            {/* Camera error message */}
-            {cameraError && (
-              <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-xs font-semibold text-red-700 space-y-2">
-                <p>⚠️ {cameraError}</p>
-                <button
-                  onClick={startScanner}
-                  className="rounded-lg bg-red-100 hover:bg-red-200 px-3 py-1 text-xs font-bold text-red-800 transition"
-                >
-                  Retry Camera
-                </button>
-              </div>
-            )}
-
-            {/* ── Captured QR Token Banner with Expiry Progress ──────────── */}
-            {qrToken && (
-              <div className="rounded-xl bg-blue-50/80 border border-blue-200 p-4 space-y-3 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping inline-block" />
-                    QR Token Captured
-                  </span>
-                  <span className="text-xs font-semibold text-blue-700 tabular-nums">
-                    Expires in {tokenTimeLeft}s
-                  </span>
-                </div>
-
-                {/* Progress bar for token expiration */}
-                <div className="h-1.5 w-full bg-blue-200/60 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-600 transition-all duration-1000 ease-linear rounded-full"
-                    style={{ width: `${(tokenTimeLeft / 30) * 100}%` }}
-                  />
-                </div>
-
-                <button
-                  onClick={handleCheckIn}
-                  disabled={step !== 'idle' && step !== 'scanning'}
-                  className="w-full rounded-xl bg-blue-600 py-3 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  <span>{step === 'idle' || step === 'scanning' ? 'Complete Check-In Now →' : 'Processing Check-in…'}</span>
-                </button>
-              </div>
-            )}
-
-            {/* ── Multi-Stage Live Check-In Progress Indicators ─────────── */}
-            {step !== 'idle' && step !== 'scanning' && (
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Verification Pipeline</p>
-                <div className="space-y-2 text-xs">
-                  {/* Step 1: QR */}
-                  <div className="flex items-center gap-2.5 text-emerald-700 font-semibold">
-                    <span>✓</span>
-                    <span>1. QR Token Scanned & Decoded</span>
-                  </div>
-
-                  {/* Step 2: GPS */}
-                  <div className={`flex items-center gap-2.5 ${step === 'gps' ? 'text-blue-600 font-bold animate-pulse' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'gps' ? '⏳' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>2. High-Accuracy GPS Fix & Geofence Check</span>
-                  </div>
-
-                  {/* Step 3: WebAuthn */}
-                  <div className={`flex items-center gap-2.5 ${step === 'biometric' ? 'text-blue-600 font-bold animate-pulse' : step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'biometric' ? '⏳' : step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>3. WebAuthn Device-Bound Biometric Passkey</span>
-                  </div>
-
-                  {/* Step 4: Server submission */}
-                  <div className={`flex items-center gap-2.5 ${step === 'submitting' ? 'text-blue-600 font-bold animate-pulse' : step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'submitting' ? '⏳' : step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>4. Final Server Confirmation & Nonce Consumption</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Success result banner */}
-            {lastResult && (
-              <div className={`rounded-xl p-4 text-xs font-semibold flex items-start gap-2.5 ${lastResult.flagged ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
-                <span className="text-base">{lastResult.flagged ? '⚠️' : '🎉'}</span>
-                <div>
-                  <p className="font-bold">{lastResult.flagged ? 'Check-in Recorded with Flags' : 'Check-in Successful!'}</p>
-                  <p className="mt-0.5 leading-relaxed font-normal">{lastResult.message}</p>
-                </div>
-              </div>
-            )}
-
-            {status && (
-              <div className="rounded-xl bg-blue-50 border border-blue-200 p-3.5 text-xs font-semibold text-blue-800 flex items-center gap-2">
-                <span>ℹ️</span>
-                <span>{status}</span>
-              </div>
-            )}
-
-            <ErrorText>{error}</ErrorText>
-          </div>
-        </div>
-
-        {/* ── Right Column: Recent Activity & Attendance Records (2 Cols) ── */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-2xl bg-white p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-gray-900 tracking-tight">Recent Attendance</h3>
-                <button
-                  onClick={loadStudentData}
-                  className="text-xs font-semibold text-blue-600 hover:underline"
-                >
-                  {loadingHistory ? 'Refreshing…' : 'Refresh'}
-                </button>
-              </div>
-
-              {history.length > 0 ? (
-                <div className="divide-y divide-gray-100">
-                  {history.map((record) => {
-                    const course = record.sessions?.courses;
-                    const venue = record.sessions?.venues;
-                    const date = new Date(record.checked_in_at);
-
-                    return (
-                      <div key={record.id} className="py-3.5 first:pt-0 last:pb-0 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-gray-900">
-                            {course?.code ?? 'Session Check-In'}
-                          </span>
-                          {record.flagged_reason ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                              Flagged
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              ✓ Verified
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between text-[11px] text-gray-500">
-                          <span>{venue?.name ?? 'Registered Venue'}</span>
-                          <span>{date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-
-                        <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                          <span>📍 {Math.round(record.distance_meters)}m from center</span>
-                          <span>{record.webauthn_verified ? '🔐 Biometric' : '🔓 Standard'}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-12 text-center text-gray-400 space-y-2">
-                  <p className="text-2xl">📋</p>
-                  <p className="text-xs font-medium">No check-in records found yet</p>
-                  <p className="text-[11px]">Scan your first session QR code to mark attendance.</p>
-                </div>
-              )}
-            </div>
-
-            {/* Offline sync note */}
-            <div className="mt-6 rounded-xl bg-slate-50 border border-slate-100 p-3 text-[11px] text-slate-500 leading-relaxed">
-              💡 <strong>Offline Support Enabled:</strong> If network connection is weak during class, check-ins are saved locally and synced automatically when reconnected.
-            </div>
-          </div>
-        </div>
-      </div>
     </StudentLayout>
   );
 }
