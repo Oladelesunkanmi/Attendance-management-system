@@ -1,4 +1,4 @@
-import { assertEquals } from 'jsr:@std/assert@1';
+import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { distanceMeters } from './haversine.ts';
 
 Deno.test('distanceMeters returns ~0 for identical points', () => {
