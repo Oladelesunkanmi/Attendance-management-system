@@ -212,7 +212,7 @@ export default function SessionsPage() {
   useEffect(() => {
     if (!activeSession?.course_id) { setEnrolledCount(null); return; }
     supabase
-      .from('enrollments' as any)
+      .from('enrollments')
       .select('id', { count: 'exact', head: true })
       .eq('course_id', activeSession.course_id)
       .then(({ count }: { count: number | null }) => setEnrolledCount(count ?? null));

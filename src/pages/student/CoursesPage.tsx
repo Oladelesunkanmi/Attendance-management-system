@@ -73,7 +73,7 @@ export default function StudentCoursesPage() {
   return (
     <StudentLayout title="Course Registration" subtitle="Browse and enrol in your courses">
       <div className="max-w-3xl space-y-6">
-        {error && <ErrorText error={error} />}
+        {error && <ErrorText>{error}</ErrorText>}
 
         <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">

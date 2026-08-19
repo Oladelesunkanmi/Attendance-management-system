@@ -54,6 +54,24 @@ export type Database = {
         };
         Relationships: [];
       };
+      enrollments: {
+        Row: {
+          id: string;
+          course_id: string;
+          student_id: string;
+        };
+        Insert: {
+          id?: string;
+          course_id: string;
+          student_id: string;
+        };
+        Update: {
+          id?: string;
+          course_id?: string;
+          student_id?: string;
+        };
+        Relationships: [];
+      };
       venues: {
         Row: {
           id: string;
