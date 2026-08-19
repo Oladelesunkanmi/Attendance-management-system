@@ -40,7 +40,8 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
           mode = payload.verification_mode;
         }
       } catch (e) {
-        throw new Error('Invalid QR code format');
+        console.error('QR Decode Error:', e, 'Token:', qrToken);
+        throw new Error(`Invalid QR code format: ${e instanceof Error ? e.message : String(e)}`);
       }
 
       const requiresBiometrics = mode === 'full';
