@@ -4,7 +4,7 @@ import {
   type AuthenticationResponseJSON,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser';
-import { callEdgeFunction, supabase } from '../lib/supabase';
+import { callEdgeFunction } from '../lib/supabase';
 import { getStablePosition } from '../lib/geo';
 import { queueCheckIn } from '../lib/queue';
 import type { CheckInStep } from '../types/checkin';
@@ -24,8 +24,6 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
     setLastResult(null);
 
     try {
-      // Decode QR token to get session ID and mode
-      let sessionId: string | undefined;
       let mode = 'full';
       try {
         const base64Url = qrToken.split('.')[1];
@@ -38,7 +36,6 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
           return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
         const payload = JSON.parse(jsonPayload);
-        sessionId = payload.session_id;
         if (payload.verification_mode) {
           mode = payload.verification_mode;
         }
