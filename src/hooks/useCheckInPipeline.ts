@@ -38,7 +38,7 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
       }
 
       // Fetch session settings
-      let requiresBiometrics = true;
+      let mode = 'full';
       if (sessionId) {
         const { data: session } = await supabase
           .from('sessions')
@@ -47,16 +47,20 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
           .maybeSingle();
         
         if (session) {
-          requiresBiometrics = session.verification_mode === 'full';
+          mode = session.verification_mode;
         }
       }
 
+      const requiresBiometrics = mode === 'full';
+      const requiresGps = mode !== 'qr_only';
+
       // 1. GPS Position Stage
-      setStep('gps');
-      setStatus('Acquiring high-accuracy GPS fix…');
-      // We still get GPS for analytics even if not strictly required by geofence, 
-      // but in the future we could conditionally skip this too if qr_only.
-      const position = await getStablePosition(2);
+      let position: { coords: { latitude: number; longitude: number; accuracy: number } } | null = null;
+      if (requiresGps) {
+        setStep('gps');
+        setStatus('Acquiring high-accuracy GPS fix…');
+        position = await getStablePosition(2);
+      }
 
       // 2. WebAuthn Biometric Stage
       let assertionResponse: AuthenticationResponseJSON | undefined;
@@ -92,9 +96,9 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
 
       const checkInPayload = {
         qrToken,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        gpsAccuracy: position.coords.accuracy,
+        latitude: position?.coords.latitude ?? 0,
+        longitude: position?.coords.longitude ?? 0,
+        gpsAccuracy: position?.coords.accuracy ?? 0,
         assertionResponse,
       };
 
