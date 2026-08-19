@@ -25,7 +25,7 @@ async function notifyClients(message: { type: string; payload?: unknown; error?:
   }
 }
 
-async function processQueue(supabaseUrl?: string, supabaseAnonKey?: string, authToken?: string) {
+async function processQueue(apiUrl?: string, authToken?: string) {
   const queue = await getQueuedCheckIns();
   if (queue.length === 0) return;
 
@@ -41,14 +41,13 @@ async function processQueue(supabaseUrl?: string, supabaseAnonKey?: string, auth
       continue;
     }
 
-    if (supabaseUrl && supabaseAnonKey && authToken) {
+    if (apiUrl && authToken) {
       try {
-        const response = await fetch(`${supabaseUrl}/functions/v1/verify-checkin`, {
+        const response = await fetch(`${apiUrl}/api/verify-checkin`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${authToken}`,
-            apikey: supabaseAnonKey,
           },
           body: JSON.stringify({
             qrToken: item.qrToken,
@@ -91,7 +90,7 @@ self.addEventListener('sync', (event: any) => {
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'TRIGGER_SYNC') {
-    const { supabaseUrl, supabaseAnonKey, authToken } = event.data;
-    event.waitUntil(processQueue(supabaseUrl, supabaseAnonKey, authToken));
+    const { apiUrl, authToken } = event.data;
+    event.waitUntil(processQueue(apiUrl, authToken));
   }
 });

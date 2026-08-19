@@ -1,5 +1,5 @@
-import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { requireLecturer } from '../_shared/auth.ts';
+import { Router } from 'express';
+import { requireLecturer } from '../middleware/auth.js';
 
 /**
  * Lecturer-only endpoint for managing student WebAuthn credentials.
@@ -11,14 +11,12 @@ import { requireLecturer } from '../_shared/auth.ts';
  *              re-enrol on a new device. The old credential row is
  *              retained for audit purposes with revoked_at set.
  */
-Deno.serve(async (req) => {
-  const cors = handleCors(req);
-  if (cors) return cors;
+export const revokeCredentialRouter = Router();
 
+revokeCredentialRouter.post('/', requireLecturer, async (req, res) => {
   try {
-    const { profile, serviceClient } = await requireLecturer(req);
-    const body = await req.json();
-    const { action, matricNumber, studentId } = body as {
+    const { profile, serviceClient } = req.auth!;
+    const { action, matricNumber, studentId } = req.body as {
       action: 'lookup' | 'revoke';
       matricNumber?: string;
       studentId?: string;
@@ -27,7 +25,8 @@ Deno.serve(async (req) => {
     // ── lookup ───────────────────────────────────────────────────────────────
     if (action === 'lookup') {
       if (!matricNumber) {
-        return jsonResponse({ error: 'matricNumber is required' }, 400);
+        res.status(400).json({ error: 'matricNumber is required' });
+        return;
       }
 
       const { data: student } = await serviceClient
@@ -38,7 +37,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!student) {
-        return jsonResponse({ error: 'Student not found' }, 404);
+        res.status(404).json({ error: 'Student not found' });
+        return;
       }
 
       const { data: credential } = await serviceClient
@@ -48,19 +48,21 @@ Deno.serve(async (req) => {
         .is('revoked_at', null)
         .maybeSingle();
 
-      return jsonResponse({
+      res.json({
         studentId: student.id,
         studentName: student.full_name,
         hasActiveCredential: !!credential,
         enrolledAt: credential?.enrolled_at ?? null,
         credentialId: credential?.id ?? null,
       });
+      return;
     }
 
     // ── revoke ───────────────────────────────────────────────────────────────
     if (action === 'revoke') {
       if (!studentId) {
-        return jsonResponse({ error: 'studentId is required' }, 400);
+        res.status(400).json({ error: 'studentId is required' });
+        return;
       }
 
       const { data: updated, error: revokeError } = await serviceClient
@@ -76,20 +78,22 @@ Deno.serve(async (req) => {
 
       if (revokeError) {
         console.error('Revocation error:', revokeError);
-        return jsonResponse({ error: 'Failed to revoke credential' }, 500);
+        res.status(500).json({ error: 'Failed to revoke credential' });
+        return;
       }
 
       if (!updated) {
-        return jsonResponse({ error: 'No active credential found for this student' }, 404);
+        res.status(404).json({ error: 'No active credential found for this student' });
+        return;
       }
 
-      return jsonResponse({ revoked: true });
+      res.json({ revoked: true });
+      return;
     }
 
-    return jsonResponse({ error: 'Invalid action' }, 400);
+    res.status(400).json({ error: 'Invalid action' });
   } catch (err) {
-    if (err instanceof Response) return err;
     console.error(err);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });

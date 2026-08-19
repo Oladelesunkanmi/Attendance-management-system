@@ -1,22 +1,20 @@
+import { Router } from 'express';
 import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
-import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { requireStudent } from '../_shared/auth.ts';
-import { getWebauthnConfig } from '../_shared/webauthn.ts';
+import { requireStudent } from '../middleware/auth.js';
+import { getWebauthnConfig } from '../lib/webauthn.js';
 
-Deno.serve(async (req) => {
-  const cors = handleCors(req);
-  if (cors) return cors;
+export const webauthnAuthenticateRouter = Router();
 
+webauthnAuthenticateRouter.post('/', requireStudent, async (req, res) => {
   try {
-    const body = await req.json();
-    const step = body.step as 'options' | 'verify';
+    const { profile, serviceClient } = req.auth!;
+    const step = req.body.step as 'options' | 'verify';
 
     // ── Step 1: Generate authentication options ──
     if (step === 'options') {
-      const { profile, serviceClient } = await requireStudent(req);
       const { rpID } = getWebauthnConfig(req);
 
       const { data: credentials } = await serviceClient
@@ -26,7 +24,8 @@ Deno.serve(async (req) => {
         .is('revoked_at', null);
 
       if (!credentials?.length) {
-        return jsonResponse({ error: 'No active WebAuthn credential found' }, 400);
+        res.status(400).json({ error: 'No active WebAuthn credential found' });
+        return;
       }
 
       const options = await generateAuthenticationOptions({
@@ -44,14 +43,14 @@ Deno.serve(async (req) => {
         expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       });
 
-      return jsonResponse({ options });
+      res.json({ options });
+      return;
     }
 
     // ── Step 2: Verify assertion response ──
     if (step === 'verify') {
-      const { profile, serviceClient } = await requireStudent(req);
       const { rpID, origin } = getWebauthnConfig(req);
-      const { assertionResponse } = body;
+      const { assertionResponse } = req.body;
 
       const { data: challengeRow } = await serviceClient
         .from('webauthn_challenges')
@@ -64,7 +63,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!challengeRow) {
-        return jsonResponse({ error: 'Authentication challenge expired or not found' }, 400);
+        res.status(400).json({ error: 'Authentication challenge expired or not found' });
+        return;
       }
 
       const { data: credential } = await serviceClient
@@ -76,7 +76,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (!credential) {
-        return jsonResponse({ error: 'Credential not found or revoked' }, 404);
+        res.status(404).json({ error: 'Credential not found or revoked' });
+        return;
       }
 
       const verification = await verifyAuthenticationResponse({
@@ -92,7 +93,8 @@ Deno.serve(async (req) => {
       });
 
       if (!verification.verified) {
-        return jsonResponse({ error: 'Authentication verification failed' }, 400);
+        res.status(400).json({ error: 'Authentication verification failed' });
+        return;
       }
 
       // Update counter (replay attack protection)
@@ -106,13 +108,13 @@ Deno.serve(async (req) => {
         .delete()
         .eq('id', challengeRow.id);
 
-      return jsonResponse({ verified: true });
+      res.json({ verified: true });
+      return;
     }
 
-    return jsonResponse({ error: 'Invalid step' }, 400);
+    res.status(400).json({ error: 'Invalid step' });
   } catch (err) {
-    if (err instanceof Response) return err;
     console.error(err);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });

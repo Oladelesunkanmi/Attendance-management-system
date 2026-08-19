@@ -1,8 +1,10 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 10;
 
 export async function checkRateLimit(
-  serviceClient: ReturnType<typeof import('./auth.ts').createServiceClient>,
+  serviceClient: SupabaseClient,
   key: string,
 ): Promise<boolean> {
   const now = new Date();

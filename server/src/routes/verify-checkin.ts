@@ -1,37 +1,40 @@
-import { jwtVerify } from 'npm:jose@5';
-import { verifyAuthenticationResponse } from 'npm:@simplewebauthn/server@11';
-import { handleCors, jsonResponse } from '../_shared/cors.ts';
-import { requireStudent } from '../_shared/auth.ts';
-import { distanceMeters, evaluateGpsFlags } from '../_shared/haversine.ts';
-import { checkRateLimit } from '../_shared/rate-limit.ts';
-import { getWebauthnConfig } from '../_shared/webauthn.ts';
+import { Router } from 'express';
+import { jwtVerify } from 'jose';
+import { verifyAuthenticationResponse } from '@simplewebauthn/server';
+import { requireStudent } from '../middleware/auth.js';
+import { distanceMeters, evaluateGpsFlags } from '../lib/haversine.js';
+import { checkRateLimit } from '../lib/rate-limit.js';
+import { getWebauthnConfig } from '../lib/webauthn.js';
 
-Deno.serve(async (req) => {
-  const cors = handleCors(req);
-  if (cors) return cors;
+export const verifyCheckinRouter = Router();
 
+verifyCheckinRouter.post('/', requireStudent, async (req, res) => {
   try {
-    const { profile, serviceClient } = await requireStudent(req);
+    const { profile, serviceClient } = req.auth!;
     const allowed = await checkRateLimit(serviceClient, `checkin:${profile.id}`);
     if (!allowed) {
-      return jsonResponse({ error: 'Rate limit exceeded' }, 429);
+      res.status(429).json({ error: 'Rate limit exceeded' });
+      return;
     }
 
-    const body = await req.json();
     const {
       qrToken,
       latitude,
       longitude,
       gpsAccuracy,
       assertionResponse,
-    } = body;
+    } = req.body;
 
     if (!qrToken || latitude == null || longitude == null) {
-      return jsonResponse({ error: 'Missing required check-in fields' }, 400);
+      res.status(400).json({ error: 'Missing required check-in fields' });
+      return;
     }
 
-    const secret = Deno.env.get('QR_JWT_SECRET');
-    if (!secret) return jsonResponse({ error: 'Server misconfigured' }, 500);
+    const secret = process.env.QR_JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ error: 'Server misconfigured' });
+      return;
+    }
 
     let sessionId: string;
     let jti: string;
@@ -45,7 +48,8 @@ Deno.serve(async (req) => {
       jti = payload.jti as string;
       if (!sessionId || !jti) throw new Error('Invalid payload');
     } catch {
-      return jsonResponse({ error: 'Invalid or expired QR token' }, 401);
+      res.status(401).json({ error: 'Invalid or expired QR token' });
+      return;
     }
 
     const { data: nonce } = await serviceClient
@@ -55,8 +59,14 @@ Deno.serve(async (req) => {
       .eq('session_id', sessionId)
       .maybeSingle();
 
-    if (!nonce) return jsonResponse({ error: 'QR token not recognized' }, 401);
-    if (nonce.consumed_at) return jsonResponse({ error: 'QR token already used' }, 409);
+    if (!nonce) {
+      res.status(401).json({ error: 'QR token not recognized' });
+      return;
+    }
+    if (nonce.consumed_at) {
+      res.status(409).json({ error: 'QR token already used' });
+      return;
+    }
 
     const { data: session } = await serviceClient
       .from('sessions')
@@ -65,7 +75,8 @@ Deno.serve(async (req) => {
       .single();
 
     if (!session?.is_active) {
-      return jsonResponse({ error: 'Session is not active' }, 400);
+      res.status(400).json({ error: 'Session is not active' });
+      return;
     }
 
     const { data: enrollment } = await serviceClient
@@ -76,7 +87,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!enrollment) {
-      return jsonResponse({ error: 'Not enrolled in this course' }, 403);
+      res.status(403).json({ error: 'Not enrolled in this course' });
+      return;
     }
 
     const venue = session.venues as {
@@ -104,7 +116,8 @@ Deno.serve(async (req) => {
 
     if (mode === 'full') {
       if (!assertionResponse) {
-        return jsonResponse({ error: 'WebAuthn assertion required' }, 400);
+        res.status(400).json({ error: 'WebAuthn assertion required' });
+        return;
       }
 
       const { rpID, origin } = getWebauthnConfig(req);
@@ -119,7 +132,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!challengeRow) {
-        return jsonResponse({ error: 'Authentication challenge expired' }, 400);
+        res.status(400).json({ error: 'Authentication challenge expired' });
+        return;
       }
 
       // Only accept a credential that has not been revoked.
@@ -132,7 +146,8 @@ Deno.serve(async (req) => {
         .single();
 
       if (!credential) {
-        return jsonResponse({ error: 'Credential not found' }, 404);
+        res.status(404).json({ error: 'Credential not found' });
+        return;
       }
 
       const verification = await verifyAuthenticationResponse({
@@ -148,7 +163,8 @@ Deno.serve(async (req) => {
       });
 
       if (!verification.verified) {
-        return jsonResponse({ error: 'WebAuthn verification failed' }, 401);
+        res.status(401).json({ error: 'WebAuthn verification failed' });
+        return;
       }
 
       webauthnVerified = true;
@@ -173,7 +189,8 @@ Deno.serve(async (req) => {
       .is('consumed_at', null);
 
     if (consumeError) {
-      return jsonResponse({ error: 'QR token already used' }, 409);
+      res.status(409).json({ error: 'QR token already used' });
+      return;
     }
 
     const { data: record, error: insertError } = await serviceClient
@@ -193,19 +210,20 @@ Deno.serve(async (req) => {
 
     if (insertError) {
       if (insertError.code === '23505') {
-        return jsonResponse({ error: 'Already checked in for this session' }, 409);
+        res.status(409).json({ error: 'Already checked in for this session' });
+        return;
       }
-      return jsonResponse({ error: 'Failed to record attendance' }, 500);
+      res.status(500).json({ error: 'Failed to record attendance' });
+      return;
     }
 
-    return jsonResponse({
+    res.json({
       success: true,
       record,
       flagged: Boolean(flaggedReason),
     });
   } catch (err) {
-    if (err instanceof Response) return err;
     console.error(err);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });

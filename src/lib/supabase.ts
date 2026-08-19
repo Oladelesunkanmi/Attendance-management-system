@@ -13,33 +13,35 @@ export const supabase = createClient<Database>(
   supabaseAnonKey ?? 'placeholder',
 );
 
-export async function callEdgeFunction<T>(
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+
+/**
+ * Call the Express API backend (replaces Supabase Edge Function invocation).
+ */
+export async function callApi<T>(
   name: string,
   body: Record<string, unknown>,
 ): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
-  const { data, error } = await supabase.functions.invoke(name, {
-    body,
+  const res = await fetch(`${API_URL}/api/${name}`, {
+    method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${session.access_token}`,
     },
+    body: JSON.stringify(body),
   });
 
-  if (error) {
-    let errorMsg = error.message;
-    // Extract custom JSON error if returned from Edge Function
-    if ((error as any).context?.json) {
-      try {
-        const errJson = await (error as any).context.json();
-        if (errJson?.error) errorMsg = errJson.error;
-      } catch {
-        // ignore fallback
-      }
-    }
-    throw new Error(errorMsg || `Edge Function "${name}" failed. Make sure it is deployed to Supabase.`);
+  const json = await res.json();
+
+  if (!res.ok) {
+    throw new Error(json?.error || `API "${name}" failed (${res.status})`);
   }
 
-  return data as T;
+  return json as T;
 }
+
+/** @deprecated Use callApi instead — kept as alias for migration convenience */
+export const callEdgeFunction = callApi;
