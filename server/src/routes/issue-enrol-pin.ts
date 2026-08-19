@@ -24,13 +24,20 @@ issueEnrolPinRouter.post('/', requireLecturer, async (req, res) => {
     // the caller's role is 'lecturer' — no additional auth invented.
     const { profile, serviceClient } = req.auth!;
 
+    console.log(`[Enrol PIN] Request received from lecturer: ${profile.full_name} (${profile.id})`);
+
     // Invalidate any previous unused PINs from this lecturer so there is
     // never more than one live PIN per lecturer at a time.
-    await serviceClient
+    const { count } = await serviceClient
       .from('enrolment_pins')
       .update({ used_at: new Date().toISOString() })
       .eq('lecturer_id', profile.id)
-      .is('used_at', null);
+      .is('used_at', null)
+      .select('*', { count: 'exact' });
+      
+    if (count && count > 0) {
+      console.log(`[Enrol PIN] Invalidated ${count} previous unused PIN(s) for this lecturer`);
+    }
 
     const pin = generatePin();
     const expiresAt = new Date(Date.now() + PIN_TTL_SECONDS * 1000);
@@ -42,10 +49,12 @@ issueEnrolPinRouter.post('/', requireLecturer, async (req, res) => {
     });
 
     if (error) {
-      console.error('Failed to store PIN:', error);
+      console.error('[Enrol PIN] Failed to store PIN:', error);
       res.status(500).json({ error: 'Failed to generate PIN' });
       return;
     }
+
+    console.log(`[Enrol PIN] Successfully generated new PIN: ${pin} (expires at ${expiresAt.toISOString()})`);
 
     // Return the PIN to the lecturer's screen only.
     // The student never receives it directly — they enter it manually.
