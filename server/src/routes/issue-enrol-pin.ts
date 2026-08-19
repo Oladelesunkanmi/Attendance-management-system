@@ -28,14 +28,15 @@ issueEnrolPinRouter.post('/', requireLecturer, async (req, res) => {
 
     // Invalidate any previous unused PINs from this lecturer so there is
     // never more than one live PIN per lecturer at a time.
-    const { count } = await serviceClient
+    const { data } = await serviceClient
       .from('enrolment_pins')
       .update({ used_at: new Date().toISOString() })
       .eq('lecturer_id', profile.id)
       .is('used_at', null)
-      .select('*', { count: 'exact' });
+      .select('*');
       
-    if (count && count > 0) {
+    const count = data?.length || 0;
+    if (count > 0) {
       console.log(`[Enrol PIN] Invalidated ${count} previous unused PIN(s) for this lecturer`);
     }
 
