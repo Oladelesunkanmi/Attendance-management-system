@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, callApi } from '../../lib/supabase';
 import StudentLayout from '../../components/StudentLayout';
 import { useAuth } from '../../contexts/AuthContext';
 import { ErrorText } from '../../components/ui';
@@ -57,26 +57,14 @@ export default function StudentCoursesPage() {
     setActionLoading(courseId);
 
     try {
-      const { error: insertError } = await supabase
-        .from('enrollments')
-        .insert({
-          student_id: profile.id,
-          course_id: courseId,
-        });
-
-      if (insertError) {
-        if (insertError.code === '23505') {
-          // Unique violation - already enrolled
-          setEnrolledCourseIds(prev => new Set(prev).add(courseId));
-        } else {
-          throw insertError;
-        }
-      } else {
+      const result = await callApi<{ success: boolean; message: string }>('enrol-course', { courseId });
+      
+      if (result.success) {
         setEnrolledCourseIds(prev => new Set(prev).add(courseId));
       }
     } catch (err) {
       console.error(err);
-      setError('Failed to enrol in course. You may not have permission, or an error occurred.');
+      setError('Failed to enrol in course. ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setActionLoading(null);
     }

@@ -5,6 +5,7 @@ import cors from 'cors';
 import { webauthnRegisterRouter } from './routes/webauthn-register.js';
 import { webauthnAuthenticateRouter } from './routes/webauthn-authenticate.js';
 import { verifyCheckinRouter } from './routes/verify-checkin.js';
+import { enrolCourseRouter } from './routes/enrol-course.js';
 import { issueQrTokenRouter } from './routes/issue-qr-token.js';
 import { issueEnrolPinRouter } from './routes/issue-enrol-pin.js';
 import { revokeCredentialRouter } from './routes/revoke-credential.js';
@@ -46,7 +47,9 @@ app.get('/api/health', (_req, res) => {
 // ── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/webauthn-register', webauthnRegisterRouter);
 app.use('/api/webauthn-authenticate', webauthnAuthenticateRouter);
+// Student routes
 app.use('/api/verify-checkin', verifyCheckinRouter);
+app.use('/api/enrol-course', enrolCourseRouter);
 app.use('/api/issue-qr-token', issueQrTokenRouter);
 app.use('/api/issue-enrol-pin', issueEnrolPinRouter);
 app.use('/api/revoke-credential', revokeCredentialRouter);
