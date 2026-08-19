@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
 import { ErrorText } from '../../components/ui';
@@ -13,7 +13,6 @@ export default function EnrolWebAuthnPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasCredential, setHasCredential] = useState<boolean | null>(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (!profile) return;
