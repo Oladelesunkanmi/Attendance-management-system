@@ -21,14 +21,10 @@ export function getWebauthnConfig(req?: Request) {
     if (originHeader) {
       try {
         const parsed = new URL(Array.isArray(originHeader) ? originHeader[0] : originHeader);
-        // If env is missing, or if env was set to 'localhost' while the client is
-        // accessing from a remote domain (e.g. Vercel)
-        if (!derivedOrigin || (derivedOrigin.includes('localhost') && !parsed.hostname.includes('localhost'))) {
-          derivedOrigin = parsed.origin;
-        }
-        if (!derivedRpID || (derivedRpID === 'localhost' && parsed.hostname !== 'localhost')) {
-          derivedRpID = parsed.hostname;
-        }
+        // Always prefer the actual request origin over any hardcoded environment variables
+        // This prevents the "invalid RP ID" browser error on Vercel preview links
+        derivedOrigin = parsed.origin;
+        derivedRpID = parsed.hostname;
       } catch {
         // ignore invalid URL
       }
