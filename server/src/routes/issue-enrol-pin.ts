@@ -61,7 +61,7 @@ issueEnrolPinRouter.post('/', requireLecturer, async (req, res) => {
     // The student never receives it directly — they enter it manually.
     res.json({ pin, expiresAt: expiresAt.toISOString() });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[issue-enrol-pin]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
   }
 });

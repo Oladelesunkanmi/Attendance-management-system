@@ -93,7 +93,7 @@ revokeCredentialRouter.post('/', requireLecturer, async (req, res) => {
 
     res.status(400).json({ error: 'Invalid action' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[revoke-credential]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
   }
 });

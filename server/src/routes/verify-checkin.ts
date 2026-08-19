@@ -223,7 +223,7 @@ verifyCheckinRouter.post('/', requireStudent, async (req, res) => {
       flagged: Boolean(flaggedReason),
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[verify-checkin]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
   }
 });

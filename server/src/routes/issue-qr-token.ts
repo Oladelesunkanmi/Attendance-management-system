@@ -67,7 +67,7 @@ issueQrTokenRouter.post('/', requireLecturer, async (req, res) => {
 
     res.json({ token, jti, expiresAt: expiresAt.toISOString() });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[issue-qr-token]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
   }
 });

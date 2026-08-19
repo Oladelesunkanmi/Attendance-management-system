@@ -143,7 +143,7 @@ webauthnRegisterRouter.post('/', requireStudent, async (req, res) => {
 
     res.status(400).json({ error: 'Invalid step' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[webauthn-register]', err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
   }
 });
