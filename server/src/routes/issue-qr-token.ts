@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { SignJWT } from 'jose';
 import { requireLecturer } from '../middleware/auth.js';
 
-const TOKEN_TTL_SECONDS = 30;
+const TOKEN_TTL_SECONDS = 180;
 
 export const issueQrTokenRouter = Router();
 
