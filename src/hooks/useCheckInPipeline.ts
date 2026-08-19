@@ -4,7 +4,7 @@ import {
   type AuthenticationResponseJSON,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser';
-import { callEdgeFunction } from '../lib/supabase';
+import { callEdgeFunction, supabase } from '../lib/supabase';
 import { getStablePosition } from '../lib/geo';
 import { queueCheckIn } from '../lib/queue';
 import type { CheckInStep } from '../types/checkin';
@@ -24,37 +24,69 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
     setLastResult(null);
 
     try {
-      // 1. GPS Position Stage
-      setStep('gps');
-      setStatus('Acquiring high-accuracy GPS fix…');
-      const position = await getStablePosition(2);
-
-      // 2. WebAuthn Biometric Stage
-      setStep('biometric');
-      setStatus('Authenticating device passkey (Touch ID / Face ID)…');
-
-      let options: PublicKeyCredentialRequestOptionsJSON | undefined;
+      // Decode QR token to get session ID
+      let sessionId: string | undefined;
       try {
-        const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>(
-          'webauthn-authenticate',
-          { step: 'options' },
-        );
-        options = res.options;
-      } catch (err) {
-        if (!navigator.onLine) {
-          console.warn('Offline during webauthn options request');
-        } else {
-          throw err;
+        const base64Url = qrToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        sessionId = JSON.parse(jsonPayload).session_id;
+      } catch (e) {
+        throw new Error('Invalid QR code format');
+      }
+
+      // Fetch session settings
+      let requiresBiometrics = true;
+      if (sessionId) {
+        const { data: session } = await supabase
+          .from('sessions')
+          .select('verification_mode')
+          .eq('id', sessionId)
+          .maybeSingle();
+        
+        if (session) {
+          requiresBiometrics = session.verification_mode === 'full';
         }
       }
 
+      // 1. GPS Position Stage
+      setStep('gps');
+      setStatus('Acquiring high-accuracy GPS fix…');
+      // We still get GPS for analytics even if not strictly required by geofence, 
+      // but in the future we could conditionally skip this too if qr_only.
+      const position = await getStablePosition(2);
+
+      // 2. WebAuthn Biometric Stage
       let assertionResponse: AuthenticationResponseJSON | undefined;
-      if (options) {
+      
+      if (requiresBiometrics) {
+        setStep('biometric');
+        setStatus('Authenticating device passkey (Touch ID / Face ID)…');
+
+        let options: PublicKeyCredentialRequestOptionsJSON | undefined;
         try {
-          assertionResponse = await startAuthentication({ optionsJSON: options });
-        } catch (biometricErr) {
-          console.warn('Biometric auth cancelled or failed:', biometricErr);
-          assertionResponse = undefined;
+          const res = await callEdgeFunction<{ options: PublicKeyCredentialRequestOptionsJSON }>(
+            'webauthn-authenticate',
+            { step: 'options' },
+          );
+          options = res.options;
+        } catch (err) {
+          if (!navigator.onLine) {
+            console.warn('Offline during webauthn options request');
+          } else {
+            throw err;
+          }
+        }
+
+        if (options) {
+          try {
+            assertionResponse = await startAuthentication({ optionsJSON: options });
+          } catch (biometricErr) {
+            console.warn('Biometric auth cancelled or failed:', biometricErr);
+            assertionResponse = undefined;
+          }
         }
       }
 
