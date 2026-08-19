@@ -8,6 +8,7 @@ import VenuesPage from './pages/lecturer/VenuesPage';
 import SessionsPage from './pages/lecturer/SessionsPage';
 import SuperviseEnrolmentPage from './pages/lecturer/SuperviseEnrolmentPage';
 import CheckInPage from './pages/student/CheckInPage';
+import StudentCoursesPage from './pages/student/CoursesPage';
 import EnrolWebAuthnPage from './pages/student/EnrolWebAuthnPage';
 
 function ProtectedRoute({
@@ -52,6 +53,7 @@ export default function App() {
       <Route path="/lecturer/sessions" element={<ProtectedRoute allowedRole="lecturer"><SessionsPage /></ProtectedRoute>} />
       <Route path="/lecturer/enrolment" element={<ProtectedRoute allowedRole="lecturer"><SuperviseEnrolmentPage /></ProtectedRoute>} />
       <Route path="/student/check-in" element={<ProtectedRoute allowedRole="student"><CheckInPage /></ProtectedRoute>} />
+      <Route path="/student/courses" element={<ProtectedRoute allowedRole="student"><StudentCoursesPage /></ProtectedRoute>} />
       <Route path="/student/enrol" element={<ProtectedRoute allowedRole="student"><EnrolWebAuthnPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
