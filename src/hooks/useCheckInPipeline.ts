@@ -24,31 +24,22 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
     setLastResult(null);
 
     try {
-      // Decode QR token to get session ID
+      // Decode QR token to get session ID and mode
       let sessionId: string | undefined;
+      let mode = 'full';
       try {
         const base64Url = qrToken.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
           return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
-        sessionId = JSON.parse(jsonPayload).session_id;
+        const payload = JSON.parse(jsonPayload);
+        sessionId = payload.session_id;
+        if (payload.verification_mode) {
+          mode = payload.verification_mode;
+        }
       } catch (e) {
         throw new Error('Invalid QR code format');
-      }
-
-      // Fetch session settings
-      let mode = 'full';
-      if (sessionId) {
-        const { data: session } = await supabase
-          .from('sessions')
-          .select('verification_mode')
-          .eq('id', sessionId)
-          .maybeSingle();
-        
-        if (session) {
-          mode = session.verification_mode;
-        }
       }
 
       const requiresBiometrics = mode === 'full';

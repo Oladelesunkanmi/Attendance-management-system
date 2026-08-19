@@ -19,7 +19,7 @@ issueQrTokenRouter.post('/', requireLecturer, async (req, res) => {
 
     const { data: session, error: sessionError } = await serviceClient
       .from('sessions')
-      .select('id, is_active, course_id, courses!inner(lecturer_id)')
+      .select('id, is_active, verification_mode, course_id, courses!inner(lecturer_id)')
       .eq('id', sessionId)
       .single();
 
@@ -58,7 +58,7 @@ issueQrTokenRouter.post('/', requireLecturer, async (req, res) => {
       return;
     }
 
-    const token = await new SignJWT({ session_id: sessionId })
+    const token = await new SignJWT({ session_id: sessionId, verification_mode: session.verification_mode })
       .setProtectedHeader({ alg: 'HS256' })
       .setJti(jti)
       .setIssuedAt()
