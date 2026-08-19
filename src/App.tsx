@@ -7,6 +7,7 @@ import CoursesPage from './pages/lecturer/CoursesPage';
 import VenuesPage from './pages/lecturer/VenuesPage';
 import SessionsPage from './pages/lecturer/SessionsPage';
 import SuperviseEnrolmentPage from './pages/lecturer/SuperviseEnrolmentPage';
+import AttendancePage from './pages/lecturer/AttendancePage';
 import CheckInPage from './pages/student/CheckInPage';
 import StudentCoursesPage from './pages/student/CoursesPage';
 import EnrolWebAuthnPage from './pages/student/EnrolWebAuthnPage';
@@ -51,6 +52,7 @@ export default function App() {
       <Route path="/lecturer/courses" element={<ProtectedRoute allowedRole="lecturer"><CoursesPage /></ProtectedRoute>} />
       <Route path="/lecturer/venues" element={<ProtectedRoute allowedRole="lecturer"><VenuesPage /></ProtectedRoute>} />
       <Route path="/lecturer/sessions" element={<ProtectedRoute allowedRole="lecturer"><SessionsPage /></ProtectedRoute>} />
+      <Route path="/lecturer/attendance" element={<ProtectedRoute allowedRole="lecturer"><AttendancePage /></ProtectedRoute>} />
       <Route path="/lecturer/enrolment" element={<ProtectedRoute allowedRole="lecturer"><SuperviseEnrolmentPage /></ProtectedRoute>} />
       <Route path="/student/check-in" element={<ProtectedRoute allowedRole="student"><CheckInPage /></ProtectedRoute>} />
       <Route path="/student/courses" element={<ProtectedRoute allowedRole="student"><StudentCoursesPage /></ProtectedRoute>} />
