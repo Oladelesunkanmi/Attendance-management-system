@@ -14,7 +14,7 @@ export default function CheckInPage() {
 
   // ── Local state for scanned token & countdown ──
   const [qrToken, setQrToken] = useState<string | null>(null);
-  const [tokenTimeLeft, setTokenTimeLeft] = useState<number>(30);
+  const [tokenTimeLeft, setTokenTimeLeft] = useState<number>(180);
 
   // ── Student Stats & Records ──
   const [hasCredential, setHasCredential] = useState<boolean | null>(null);
@@ -69,16 +69,16 @@ export default function CheckInPage() {
     },
   });
 
-  // ── Token 30s countdown timer ──
+  // ── Token 180s countdown timer ──
   useEffect(() => {
     if (!qrToken || step === 'success' || step === 'queued') return;
-    setTokenTimeLeft(30);
+    setTokenTimeLeft(180);
     const interval = setInterval(() => {
       setTokenTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
           setQrToken(null);
-          setError('Scanned QR code expired (30s limit). Please scan again.');
+          setError('Scanned QR code expired (180s limit). Please scan again.');
           return 0;
         }
         return prev - 1;
@@ -173,7 +173,7 @@ export default function CheckInPage() {
                 <div className="h-1.5 w-full bg-blue-200/60 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-600 transition-all duration-1000 ease-linear rounded-full"
-                    style={{ width: `${(tokenTimeLeft / 30) * 100}%` }}
+                    style={{ width: `${(tokenTimeLeft / 180) * 100}%` }}
                   />
                 </div>
 
