@@ -14,7 +14,15 @@ const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin or exact matches to the env variable
+    const exactMatch = process.env.CORS_ORIGIN ?? 'http://localhost:5173';
+    if (!origin || origin === exactMatch || origin.endsWith('.vercel.app') || origin.startsWith('http://localhost:')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-client-info', 'apikey'],
 }));
