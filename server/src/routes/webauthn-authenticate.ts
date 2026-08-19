@@ -34,6 +34,7 @@ webauthnAuthenticateRouter.post('/', requireStudent, async (req, res) => {
           id: cred.credential_id,
           type: 'public-key' as const,
         })),
+        userVerification: 'required', // Force biometric prompt
       });
 
       await serviceClient.from('webauthn_challenges').insert({

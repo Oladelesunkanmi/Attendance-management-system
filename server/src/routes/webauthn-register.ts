@@ -30,6 +30,11 @@ webauthnRegisterRouter.post('/', requireStudent, async (req, res) => {
         userName: profile.matric_number ?? profile.id,
         userDisplayName: profile.full_name,
         attestationType: 'none',
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform', // Strictly require FaceID/Fingerprint built into the device
+          userVerification: 'required',        // Strictly require biometric verification
+          residentKey: 'required',             // Store credential on device
+        },
         excludeCredentials: (existing ?? []).map((cred: { credential_id: string }) => ({
           id: cred.credential_id,
           type: 'public-key' as const,
