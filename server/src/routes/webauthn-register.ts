@@ -31,9 +31,8 @@ webauthnRegisterRouter.post('/', requireStudent, async (req, res) => {
         userDisplayName: profile.full_name,
         attestationType: 'none',
         authenticatorSelection: {
-          authenticatorAttachment: 'platform', // Strictly require FaceID/Fingerprint built into the device
-          userVerification: 'required',        // Strictly require biometric verification
-          residentKey: 'preferred',            // Use 'preferred' instead of 'required' for older Android compatibility
+          userVerification: 'preferred', // Let the browser decide the best way to verify (prevents instant NotAllowedError if no fingerprint is set up)
+          residentKey: 'preferred',
         },
         excludeCredentials: (existing ?? []).map((cred: { credential_id: string }) => ({
           id: cred.credential_id,
