@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { callEdgeFunction } from '../../lib/supabase';
+import { supabase, callEdgeFunction } from '../../lib/supabase';
 import { ErrorText } from '../../components/ui';
 import StudentLayout from '../../components/StudentLayout';
 
@@ -11,6 +12,21 @@ export default function EnrolWebAuthnPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasCredential, setHasCredential] = useState<boolean | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!profile) return;
+    supabase
+      .from('webauthn_credentials')
+      .select('id')
+      .eq('student_id', profile.id)
+      .is('revoked_at', null)
+      .maybeSingle()
+      .then(({ data }) => {
+        setHasCredential(!!data);
+      });
+  }, [profile]);
 
   async function handleEnrol() {
     if (!profile) return;
@@ -46,6 +62,30 @@ export default function EnrolWebAuthnPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (hasCredential) {
+    return (
+      <StudentLayout title="Biometric Enrolment">
+        <div className="rounded-2xl bg-white p-6 shadow-xs border border-gray-100 text-center space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+            <svg className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-gray-900">You are already enrolled!</h2>
+          <p className="text-sm text-gray-500">
+            Your biometric credential is active and ready for check-ins.
+          </p>
+          <Link
+            to="/student"
+            className="inline-block mt-4 rounded-xl bg-gray-100 px-6 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-200 transition"
+          >
+            ← Back to Dashboard
+          </Link>
+        </div>
+      </StudentLayout>
+    );
   }
 
   return (
