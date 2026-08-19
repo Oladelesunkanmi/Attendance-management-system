@@ -26,7 +26,11 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
     try {
       let mode = 'full';
       try {
-        const base64Url = qrToken.split('.')[1];
+        const parts = qrToken.split('.');
+        if (parts.length !== 3) {
+          throw new Error('Not a valid session QR token.');
+        }
+        const base64Url = parts[1];
         let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const pad = base64.length % 4;
         if (pad) {
@@ -41,7 +45,7 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
         }
       } catch (e) {
         console.error('QR Decode Error:', e, 'Token:', qrToken);
-        throw new Error(`Invalid QR code format: ${e instanceof Error ? e.message : String(e)}`);
+        throw new Error(`Invalid QR code format: ${e instanceof Error ? e.message : 'Please make sure you are scanning a valid session QR code.'}`);
       }
 
       const requiresBiometrics = mode === 'full';
