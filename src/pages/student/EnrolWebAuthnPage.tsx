@@ -22,9 +22,9 @@ export default function EnrolWebAuthnPage() {
       .select('id')
       .eq('student_id', profile.id)
       .is('revoked_at', null)
-      .maybeSingle()
+      .limit(1)
       .then(({ data }) => {
-        setHasCredential(!!data);
+        setHasCredential((data?.length ?? 0) > 0);
       });
   }, [profile]);
 
