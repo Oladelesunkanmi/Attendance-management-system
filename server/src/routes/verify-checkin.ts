@@ -87,8 +87,17 @@ verifyCheckinRouter.post('/', requireStudent, async (req, res) => {
       .maybeSingle();
 
     if (!enrollment) {
-      res.status(403).json({ error: 'Not enrolled in this course' });
-      return;
+      const { error: enrolError } = await serviceClient
+        .from('enrollments')
+        .insert({
+          course_id: session.course_id,
+          student_id: profile.id,
+        });
+
+      if (enrolError) {
+        res.status(500).json({ error: 'Failed to auto-enrol in the course' });
+        return;
+      }
     }
 
     const venue = session.venues as {
