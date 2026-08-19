@@ -24,7 +24,7 @@ export default function AttendancePage() {
       const { data } = await supabase
         .from('courses')
         .select('*')
-        .eq('lecturer_id', profile.id)
+        .eq('lecturer_id', profile!.id)
         .order('code');
       setCourses(data ?? []);
     }
