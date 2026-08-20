@@ -151,10 +151,10 @@ export default function CheckInPage() {
         flaggedCount={flaggedCount}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
         {/* Left Column: QR Scanner & Check-in Controls */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="rounded-2xl bg-white p-6 shadow-xs border border-gray-100 space-y-6">
+        <div className="lg:col-span-3 space-y-6 order-1">
+          <div className="rounded-2xl bg-white p-4 sm:p-6 shadow-xs border border-gray-100 space-y-6">
             <QrScanner onScanSuccess={handleScanSuccess} />
 
             {/* Captured QR Token Banner with Expiry Progress */}
@@ -180,9 +180,9 @@ export default function CheckInPage() {
                 <button
                   onClick={() => executeCheckIn(qrToken)}
                   disabled={step !== 'idle' && step !== 'scanning'}
-                  className="w-full rounded-xl bg-blue-600 py-3 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full rounded-xl bg-blue-600 py-4 px-6 text-sm font-bold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-[0.99] transition flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <span>{step === 'idle' || step === 'scanning' ? 'Complete Check-In Now →' : 'Processing Check-in…'}</span>
+                  <span>{step === 'idle' || step === 'scanning' ? 'Complete Check-In Now' : 'Processing Check-in...'}</span>
                 </button>
               </div>
             )}
@@ -192,24 +192,24 @@ export default function CheckInPage() {
               <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
                 <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Verification Pipeline</p>
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center gap-2.5 text-emerald-700 font-semibold">
-                    <span>✓</span>
-                    <span>1. QR Token Scanned & Decoded</span>
+                  <div className="flex items-start gap-2.5 text-emerald-700 font-semibold">
+                    <span className="flex-shrink-0">✓</span>
+                    <span>1. QR Token Scanned &amp; Decoded</span>
                   </div>
 
-                  <div className={`flex items-center gap-2.5 ${step === 'gps' ? 'text-blue-600 font-bold animate-pulse' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'gps' ? '⏳' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>2. High-Accuracy GPS Fix & Geofence Check</span>
+                  <div className={`flex items-start gap-2.5 ${step === 'gps' ? 'text-blue-600 font-bold animate-pulse' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
+                    <span className="flex-shrink-0">{step === 'gps' ? '⏳' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
+                    <span>2. High-Accuracy GPS Fix &amp; Geofence Check</span>
                   </div>
 
-                  <div className={`flex items-center gap-2.5 ${step === 'biometric' ? 'text-blue-600 font-bold animate-pulse' : step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'biometric' ? '⏳' : step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
+                  <div className={`flex items-start gap-2.5 ${step === 'biometric' ? 'text-blue-600 font-bold animate-pulse' : step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
+                    <span className="flex-shrink-0">{step === 'biometric' ? '⏳' : step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
                     <span>3. WebAuthn Device-Bound Biometric Passkey</span>
                   </div>
 
-                  <div className={`flex items-center gap-2.5 ${step === 'submitting' ? 'text-blue-600 font-bold animate-pulse' : step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span>{step === 'submitting' ? '⏳' : step === 'success' || step === 'queued' ? '✓' : '○'}</span>
-                    <span>4. Final Server Confirmation & Nonce Consumption</span>
+                  <div className={`flex items-start gap-2.5 ${step === 'submitting' ? 'text-blue-600 font-bold animate-pulse' : step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
+                    <span className="flex-shrink-0">{step === 'submitting' ? '⏳' : step === 'success' || step === 'queued' ? '✓' : '○'}</span>
+                    <span>4. Final Server Confirmation &amp; Nonce Consumption</span>
                   </div>
                 </div>
               </div>
@@ -218,7 +218,7 @@ export default function CheckInPage() {
             {/* Success result banner */}
             {lastResult && (
               <div className={`rounded-xl p-4 text-xs font-semibold flex items-start gap-2.5 ${lastResult.flagged ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
-                <span className="text-base">{lastResult.flagged ? '⚠️' : '🎉'}</span>
+                <span className="text-base flex-shrink-0">{lastResult.flagged ? '⚠️' : '🎉'}</span>
                 <div>
                   <p className="font-bold">{lastResult.flagged ? 'Check-in Recorded with Flags' : 'Check-in Successful!'}</p>
                   <p className="mt-0.5 leading-relaxed font-normal">{lastResult.message}</p>
@@ -237,8 +237,8 @@ export default function CheckInPage() {
           </div>
         </div>
 
-        {/* Right Column: Recent Activity & Attendance Records */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Right Column: Recent Activity — shown below scanner on mobile */}
+        <div className="lg:col-span-2 space-y-6 order-2">
           <AttendanceHistoryList
             history={history}
             loading={loadingHistory}
@@ -246,6 +246,7 @@ export default function CheckInPage() {
           />
         </div>
       </div>
+
     </StudentLayout>
   );
 }
