@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+ï»¿import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import LecturerLayout from '../../components/LecturerLayout';
@@ -189,7 +189,7 @@ export default function AttendancePage() {
                           isSelected ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'
                         }`}
                       >
-                        {countsLoading ? '—' : `${count} attendee${count !== 1 ? 's' : ''}`}
+                        {countsLoading ? '-' : `${count} attendee${count !== 1 ? 's' : ''}`}
                       </span>
                     </div>
                     <div className="mt-3">
@@ -212,7 +212,7 @@ export default function AttendancePage() {
             <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-xs sm:flex-row sm:items-end">
               <div className="flex-1">
                 <label className="mb-1.5 block text-xs font-semibold text-gray-700">
-                  Session — <span className="text-blue-600">{selectedCourse?.code}</span>
+                  Session - <span className="text-blue-600">{selectedCourse?.code}</span>
                 </label>
                 <select
                   id="session-select"
