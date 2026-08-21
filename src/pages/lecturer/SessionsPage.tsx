@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
@@ -187,9 +187,22 @@ export default function SessionsPage() {
     [courses, activeSession],
   );
 
-  // ── Derived stats (real data only) ──────────────────────────────────────
+  // ── Derived stats (real data only) ──────────────────────────────────
   const flaggedCount = attendance.filter((r) => r.flagged_reason).length;
   const [enrolledCount, setEnrolledCount] = useState<number | null>(null);
+
+  // ── At-risk students state ────────────────────────────────────────────
+  interface AtRiskStudent {
+    student_id: string;
+    full_name: string;
+    matric_number: string | null;
+    attended: number;
+    total: number;
+    pct: number;
+    status: 'at-risk' | 'critical';
+  }
+  const [atRiskStudents, setAtRiskStudents] = useState<AtRiskStudent[]>([]);
+  const [atRiskLoading, setAtRiskLoading] = useState(false);
 
   // ── Load base data ────────────────────────────────────────────────────────
   async function loadData() {
@@ -217,6 +230,62 @@ export default function SessionsPage() {
       .eq('course_id', activeSession.course_id)
       .then(({ count }: { count: number | null }) => setEnrolledCount(count ?? null));
   }, [activeSession?.course_id]);
+
+  // ── Compute at-risk students for the active course ──────────────────────
+  const computeAtRisk = useCallback(async () => {
+    if (!activeSession?.course_id) { setAtRiskStudents([]); return; }
+    setAtRiskLoading(true);
+
+    const course = courses.find((c) => c.id === activeSession.course_id);
+    const threshold = course?.min_attendance_pct ?? 75;
+
+    // All sessions for this course
+    const { data: courseSessions } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('course_id', activeSession.course_id);
+    const sessionIds = (courseSessions ?? []).map((s) => s.id);
+    const totalSessions = sessionIds.length;
+
+    if (totalSessions === 0) { setAtRiskStudents([]); setAtRiskLoading(false); return; }
+
+    // All attendance records for those sessions
+    const { data: allRecs } = await supabase
+      .from('attendance_records')
+      .select('student_id, session_id')
+      .in('session_id', sessionIds);
+
+    // Enrollments with profiles
+    const { data: enrData } = await supabase
+      .from('enrollments')
+      .select('student_id, profiles(full_name, matric_number)')
+      .eq('course_id', activeSession.course_id);
+
+    const recs = allRecs ?? [];
+    const enrs = (enrData ?? []) as unknown as { student_id: string; profiles: { full_name: string; matric_number: string | null } | null }[];
+
+    const result: AtRiskStudent[] = [];
+    for (const enr of enrs) {
+      const attended = recs.filter((r) => r.student_id === enr.student_id).length;
+      const pct = Math.round((attended / totalSessions) * 100);
+      if (pct < threshold) {
+        result.push({
+          student_id: enr.student_id,
+          full_name: enr.profiles?.full_name ?? 'Unknown',
+          matric_number: enr.profiles?.matric_number ?? null,
+          attended,
+          total: totalSessions,
+          pct,
+          status: pct >= threshold - 15 ? 'at-risk' : 'critical',
+        });
+      }
+    }
+    result.sort((a, b) => a.pct - b.pct);
+    setAtRiskStudents(result);
+    setAtRiskLoading(false);
+  }, [activeSession?.course_id, courses]);
+
+  useEffect(() => { computeAtRisk(); }, [computeAtRisk]);
 
   // ── Realtime attendance subscription ─────────────────────────────────────
   useEffect(() => {
@@ -847,6 +916,97 @@ export default function SessionsPage() {
           </table>
         </div>
       </div>
+
+      {/* ── At-Risk Students Panel ─────────────────────────────────────────── */}
+      {activeSession && (
+        <div className="rounded-2xl bg-white p-6 shadow-xs border border-amber-100">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-gray-900 tracking-tight">At-Risk Students</h2>
+                <p className="text-xs text-gray-500 font-medium mt-0.5">
+                  Students below the {activeCourse?.min_attendance_pct ?? 75}% attendance threshold for {activeCourse?.code}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={computeAtRisk}
+              disabled={atRiskLoading}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition flex items-center gap-1.5"
+            >
+              <svg className={`h-3.5 w-3.5 ${atRiskLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+
+          {atRiskLoading ? (
+            <div className="animate-pulse py-10 text-center text-sm text-gray-400">Computing attendance data…</div>
+          ) : atRiskStudents.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-500">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-gray-700">All students are on track!</p>
+              <p className="text-xs text-gray-400">No one is below the attendance threshold yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="pb-3">Student</th>
+                    <th className="pb-3">Matric No.</th>
+                    <th className="pb-3">Attended</th>
+                    <th className="pb-3 w-44">Running %</th>
+                    <th className="pb-3">Risk Level</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {atRiskStudents.map((s) => (
+                    <tr key={s.student_id} className="hover:bg-amber-50/30 transition">
+                      <td className="py-3 font-semibold text-gray-900">{s.full_name}</td>
+                      <td className="py-3 text-xs font-medium text-gray-500">{s.matric_number ?? '—'}</td>
+                      <td className="py-3 text-xs font-medium text-gray-700 tabular-nums">{s.attended} / {s.total}</td>
+                      <td className="py-3 w-44">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${s.status === 'critical' ? 'bg-red-500' : 'bg-amber-500'}`}
+                              style={{ width: `${s.pct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold tabular-nums w-10 text-right text-gray-700">{s.pct}%</span>
+                        </div>
+                      </td>
+                      <td className="py-3">
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
+                          s.status === 'critical'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {s.status === 'critical' ? 'Critical' : 'At Risk'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-4 text-xs text-gray-400 font-medium">
+                {atRiskStudents.length} student{atRiskStudents.length !== 1 ? 's' : ''} need attention · <Link to="/lecturer/reports" className="text-blue-600 hover:underline">View full report →</Link>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </LecturerLayout>
   );
 }

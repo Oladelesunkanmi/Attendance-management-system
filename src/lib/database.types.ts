@@ -39,18 +39,21 @@ export type Database = {
           code: string;
           title: string;
           lecturer_id: string | null;
+          min_attendance_pct: number;
         };
         Insert: {
           id?: string;
           code: string;
           title: string;
           lecturer_id?: string | null;
+          min_attendance_pct?: number;
         };
         Update: {
           id?: string;
           code?: string;
           title?: string;
           lecturer_id?: string | null;
+          min_attendance_pct?: number;
         };
         Relationships: [];
       };

@@ -1,11 +1,12 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 const navLinks = [
-  { to: "/student/check-in", label: "Check In" },
-  { to: "/student/courses",  label: "My Courses" },
-  { to: "/student/enrol",    label: "Enrol Biometrics" },
+  { to: "/student/check-in",   label: "Check In" },
+  { to: "/student/attendance", label: "Attendance" },
+  { to: "/student/courses",    label: "My Courses" },
+  { to: "/student/enrol",      label: "Enrol Biometrics" },
 ];
 
 export default function StudentLayout({

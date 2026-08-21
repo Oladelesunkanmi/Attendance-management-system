@@ -8,9 +8,11 @@ import VenuesPage from './pages/lecturer/VenuesPage';
 import SessionsPage from './pages/lecturer/SessionsPage';
 import SuperviseEnrolmentPage from './pages/lecturer/SuperviseEnrolmentPage';
 import AttendancePage from './pages/lecturer/AttendancePage';
+import ReportsPage from './pages/lecturer/ReportsPage';
 import CheckInPage from './pages/student/CheckInPage';
 import StudentCoursesPage from './pages/student/CoursesPage';
 import EnrolWebAuthnPage from './pages/student/EnrolWebAuthnPage';
+import StudentAttendancePage from './pages/student/AttendancePage';
 
 function ProtectedRoute({
   children,
@@ -53,8 +55,10 @@ export default function App() {
       <Route path="/lecturer/venues" element={<ProtectedRoute allowedRole="lecturer"><VenuesPage /></ProtectedRoute>} />
       <Route path="/lecturer/sessions" element={<ProtectedRoute allowedRole="lecturer"><SessionsPage /></ProtectedRoute>} />
       <Route path="/lecturer/attendance" element={<ProtectedRoute allowedRole="lecturer"><AttendancePage /></ProtectedRoute>} />
+      <Route path="/lecturer/reports" element={<ProtectedRoute allowedRole="lecturer"><ReportsPage /></ProtectedRoute>} />
       <Route path="/lecturer/enrolment" element={<ProtectedRoute allowedRole="lecturer"><SuperviseEnrolmentPage /></ProtectedRoute>} />
       <Route path="/student/check-in" element={<ProtectedRoute allowedRole="student"><CheckInPage /></ProtectedRoute>} />
+      <Route path="/student/attendance" element={<ProtectedRoute allowedRole="student"><StudentAttendancePage /></ProtectedRoute>} />
       <Route path="/student/courses" element={<ProtectedRoute allowedRole="student"><StudentCoursesPage /></ProtectedRoute>} />
       <Route path="/student/enrol" element={<ProtectedRoute allowedRole="student"><EnrolWebAuthnPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
