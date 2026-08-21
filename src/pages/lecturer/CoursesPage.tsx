@@ -85,7 +85,7 @@ export default function CoursesPage() {
                 <label className="mb-1 block text-sm font-medium text-gray-700">Course code</label>
                 <input
                   id="new-course-code"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition"
+                  className="w-full rounded-lg border-2 border-gray-300 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="e.g. CSC 401"
@@ -101,7 +101,7 @@ export default function CoursesPage() {
                   type="number"
                   min={1}
                   max={100}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition"
+                  className="w-full rounded-lg border-2 border-gray-300 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition"
                   value={minPct}
                   onChange={(e) => setMinPct(Number(e.target.value))}
                   required
@@ -112,7 +112,7 @@ export default function CoursesPage() {
               <label className="mb-1 block text-sm font-medium text-gray-700">Title</label>
               <input
                 id="new-course-title"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition"
+                className="w-full rounded-lg border-2 border-gray-300 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Computer Networks"
@@ -147,7 +147,7 @@ export default function CoursesPage() {
                         <div>
                           <label className="mb-1 block text-xs font-medium text-gray-600">Code</label>
                           <input
-                            className="w-full rounded-lg border border-blue-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition"
+                            className="w-full rounded-lg border-2 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition"
                             value={editCode}
                             onChange={(e) => setEditCode(e.target.value)}
                           />
@@ -158,7 +158,7 @@ export default function CoursesPage() {
                             type="number"
                             min={1}
                             max={100}
-                            className="w-full rounded-lg border border-blue-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition"
+                            className="w-full rounded-lg border-2 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition"
                             value={editMinPct}
                             onChange={(e) => setEditMinPct(Number(e.target.value))}
                           />
@@ -167,7 +167,7 @@ export default function CoursesPage() {
                       <div>
                         <label className="mb-1 block text-xs font-medium text-gray-600">Title</label>
                         <input
-                          className="w-full rounded-lg border border-blue-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition"
+                          className="w-full rounded-lg border-2 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:bg-white transition"
                           value={editTitle}
                           onChange={(e) => setEditTitle(e.target.value)}
                         />
