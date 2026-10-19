@@ -51,7 +51,7 @@ export default function VenuesPage() {
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Venue name</label>
               <input
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition placeholder-black"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. LT4 — New Science Block"
@@ -62,7 +62,7 @@ export default function VenuesPage() {
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Latitude</label>
                 <input
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition placeholder-black"
                   value={latitude}
                   onChange={(e) => setLatitude(e.target.value)}
                   placeholder="7.4654"
@@ -72,7 +72,7 @@ export default function VenuesPage() {
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Longitude</label>
                 <input
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition placeholder-black"
                   value={longitude}
                   onChange={(e) => setLongitude(e.target.value)}
                   placeholder="3.9169"
@@ -83,7 +83,7 @@ export default function VenuesPage() {
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Geofence radius (metres)</label>
               <input
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none ring-blue-500 focus:ring-2 focus:border-blue-500 transition placeholder-black"
                 value={radius}
                 onChange={(e) => setRadius(e.target.value)}
                 required
