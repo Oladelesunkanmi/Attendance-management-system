@@ -41,6 +41,24 @@ export default function VenuesPage() {
     );
   }
 
+// Delete a venue from Supabase
+async function deleteVenue(id: number) {
+  const { error } = await supabase.from('venues').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// UI wrapper with confirmation and state update
+async function handleDeleteVenue(id: number) {
+  const confirmed = window.confirm('Delete this venue? This action cannot be undone.');
+  if (!confirmed) return;
+  try {
+    await deleteVenue(id);
+    setVenues(prev => prev.filter(v => v.id !== id));
+  } catch (e) {
+    setError((e as Error).message);
+  }
+}
+
   return (
     <LecturerLayout title="Venues" subtitle="Register classroom coordinates for geofence verification">
       <div className="max-w-2xl space-y-6 text-black">
@@ -131,6 +149,16 @@ export default function VenuesPage() {
                       {venue.latitude.toFixed(5)}, {venue.longitude.toFixed(5)} · {venue.radius_meters}m radius
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteVenue(venue.id)}
+                    className="ml-auto rounded-full p-1 text-gray-500 hover:text-red-600 transition"
+                    title="Delete venue"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M3 6h18M9 6V4m6 2V4M5 6l1 14h12l1-14" />
+                    </svg>
+                  </button>
                 </li>
               ))}
             </ul>
