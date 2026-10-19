@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase, callApi } from "../../lib/supabase";
 import StudentLayout from "../../components/StudentLayout";
 import { useAuth } from "../../contexts/AuthContext";
@@ -103,22 +103,23 @@ export default function StudentCoursesPage() {
 
                     {/* Action */}
                     <div className="flex-shrink-0">
-                      {isEnrolled ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-100">
-                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Enrolled
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleEnrol(course.id)}
-                          disabled={isLoading}
-                          className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 transition shadow-sm disabled:opacity-50 active:scale-[0.97]"
-                        >
-                          {isLoading ? "Enrolling..." : "Enrol Now"}
-                        </button>
-                      )}
+                      {isEnrolled && (
+  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-100">
+    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+    Enrolled
+  </span>
+)}
+{!isEnrolled && (
+  <button
+    onClick={() => handleEnrol(course.id)}
+    disabled={isLoading}
+    className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 transition shadow-sm disabled:opacity-50 active:scale-[0.97]"
+  >
+    {isLoading ? "Enrolling..." : "Enrol Now"}
+  </button>
+)}
                     </div>
                   </li>
                 );
