@@ -43,7 +43,7 @@ export default function VenuesPage() {
 
 // Delete a venue from Supabase
 async function deleteVenue(id: number) {
-  const { error } = await supabase.from('venues').delete().eq('id', id);
+  const { error } = await supabase.from('venues').delete().eq('id', String(id));
   if (error) throw new Error(error.message);
 }
 
