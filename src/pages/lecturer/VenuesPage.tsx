@@ -42,13 +42,13 @@ export default function VenuesPage() {
   }
 
 // Delete a venue from Supabase
-async function deleteVenue(id: number) {
-  const { error } = await supabase.from('venues').delete().eq('id', String(id));
+async function deleteVenue(id: string) {
+  const { error } = await supabase.from('venues').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 // UI wrapper with confirmation and state update
-async function handleDeleteVenue(id: number) {
+async function handleDeleteVenue(id: string) {
   const confirmed = window.confirm('Delete this venue? This action cannot be undone.');
   if (!confirmed) return;
   try {
