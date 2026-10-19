@@ -1,0 +1,9 @@
+﻿node.exe : Initialising login role...
+At C:\Users\PC\AppData\Roaming\npm\supabase.ps1:24 char:5
++     & "node$exe"  "$basedir/node_modules/supabase/dist/supabase.js" $ ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Initialising login role...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Dumping schemas from remote database...
+{"_tag":"Error","error":{"code":"LegacyDockerRunError","message":"failed to run docker. Docker Desktop is a prerequisite for local development. Follow the official docs to install: https://docs.docker.com/desktop"}}

@@ -43,7 +43,7 @@ export default function VenuesPage() {
 
   return (
     <LecturerLayout title="Venues" subtitle="Register classroom coordinates for geofence verification">
-      <div className="max-w-2xl space-y-6">
+      <div className="max-w-2xl space-y-6 text-black">
         {/* Add venue form */}
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="mb-4 font-semibold text-gray-900">Add a venue</h2>
