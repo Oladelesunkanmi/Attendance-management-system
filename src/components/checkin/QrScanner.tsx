@@ -4,11 +4,11 @@ import { Html5Qrcode } from 'html5-qrcode';
 interface QrScannerProps {
   onScanSuccess: (decodedText: string) => void;
   onScannerReady?: (readyAfterMs: number) => void;
-  disabled?: boolean;
+
   autoStart?: boolean; // optional, default false; not used in current UI
 }
 
-function QrScanner({ onScanSuccess, onScannerReady, disabled }: QrScannerProps) {
+function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   // html5-qrcode fires its success callback for every frame that decodes, so
   // the first hit has to close the gate or one QR code turns into several
