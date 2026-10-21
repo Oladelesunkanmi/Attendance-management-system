@@ -5,9 +5,10 @@ interface QrScannerProps {
   onScanSuccess: (decodedText: string) => void;
   onScannerReady?: (readyAfterMs: number) => void;
   disabled?: boolean;
+  autoStart?: boolean; // optional, default false; not used in current UI
 }
 
-function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
+function QrScanner({ onScanSuccess, onScannerReady, disabled }: QrScannerProps) {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   // html5-qrcode fires its success callback for every frame that decodes, so
   // the first hit has to close the gate or one QR code turns into several
@@ -16,6 +17,7 @@ function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const readyReportedRef = useRef(false);
 
   const stopScanner = useCallback(async () => {
     if (html5QrCodeRef.current) {
@@ -67,7 +69,11 @@ function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
         },
       );
       setIsScanning(true);
-      onScannerReady?.(Math.round(performance.now() - startedAt));
+      // Report readiness only once per start
+      if (!readyReportedRef.current) {
+        onScannerReady?.(Math.round(performance.now() - startedAt));
+        readyReportedRef.current = true;
+      }
     } catch (err) {
       console.error('Camera start error:', err);
       setCameraError(
@@ -81,6 +87,7 @@ function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
     }
   }, [facingMode, onScanSuccess, onScannerReady, stopScanner]);
 
+  // Cleanup effect – stop scanner on unmount
   useEffect(() => {
     return () => {
       hasDecodedRef.current = true;

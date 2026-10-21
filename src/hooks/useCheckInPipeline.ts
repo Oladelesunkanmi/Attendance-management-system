@@ -112,7 +112,7 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
    */
   const ensureGps = useCallback((): Promise<GeolocationPosition> => {
     if (!gpsRef.current) {
-      const attempt = getStablePosition(2);
+      const attempt = getStablePosition(1);
       // Mark the promise as handled so a failure that happens before anybody
       // awaits it does not surface as an unhandled rejection.
       attempt.catch(() => undefined);

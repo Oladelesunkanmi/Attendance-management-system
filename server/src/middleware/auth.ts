@@ -60,8 +60,19 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         .maybeSingle()
     : null;
 
-  const { data: { user }, error } = await supabase.auth.getUser();
+  // Start fetching user and profile concurrently
+  const getUserPromise = supabase.auth.getUser();
+  const profilePromise = subject
+    ? serviceClient
+        .from('profiles')
+        .select(PROFILE_COLUMNS)
+        .eq('id', subject)
+        .maybeSingle()
+    : null;
+
+  const [{ data: { user }, error }] = await Promise.all([getUserPromise]);
   if (error || !user) {
+    // Ensure any pending profile fetch does not cause unhandled rejections
     if (profilePromise) await Promise.resolve(profilePromise).catch(() => undefined);
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
