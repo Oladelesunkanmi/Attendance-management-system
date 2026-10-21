@@ -4,7 +4,6 @@ import { act, render } from '@testing-library/react';
 const mocks = vi.hoisted(() => ({
   callApi: vi.fn(),
   getStablePosition: vi.fn(),
-  isLocationPermissionGranted: vi.fn(),
   queueCheckIn: vi.fn(),
   startAuthentication: vi.fn(),
 }));
@@ -16,7 +15,6 @@ vi.mock('../lib/supabase', () => ({
 
 vi.mock('../lib/geo', () => ({
   getStablePosition: mocks.getStablePosition,
-  isLocationPermissionGranted: mocks.isLocationPermissionGranted,
   isRetryablePositionError: (error: any) => error?.code === 2 || error?.code === 3,
 }));
 

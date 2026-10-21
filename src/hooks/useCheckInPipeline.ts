@@ -7,7 +7,6 @@ import {
 import { callEdgeFunction } from '../lib/supabase';
 import {
   getStablePosition,
-  isLocationPermissionGranted,
   isRetryablePositionError,
 } from '../lib/geo';
 import { queueCheckIn } from '../lib/queue';
@@ -153,18 +152,14 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
         prepared.options = options;
       }
 
-      // Only start the position fix this early when the student has already
-      // granted location access, so that a permission prompt is never shown
-      // before they ask for it.
+      // Start the position fix early for modes requiring GPS.
+      // This will trigger a permission prompt if not already granted.
       if (mode !== 'qr_only') {
-        void isLocationPermissionGranted().then((granted) => {
-          if (granted && preparedRef.current === prepared) {
-            void ensureGps().then(
-              () => undefined,
-              () => undefined,
-            );
-          }
-        });
+        // Initiate GPS request; errors are ignored as they will be handled later.
+        void ensureGps().then(
+          () => undefined,
+          () => undefined,
+        );
       }
     },
     [ensureGps, fetchWebauthnOptions],
