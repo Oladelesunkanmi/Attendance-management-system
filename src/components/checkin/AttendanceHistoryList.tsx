@@ -48,7 +48,7 @@ export default function AttendanceHistoryList({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-gray-500">
+                  <div className="flex items-center justify-between text-[11px] text-black">
                     <span>{venue?.name ?? 'Registered Venue'}</span>
                     <span>
                       {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
