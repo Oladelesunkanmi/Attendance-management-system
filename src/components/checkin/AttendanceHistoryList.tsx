@@ -32,9 +32,9 @@ export default function AttendanceHistoryList({
               const date = new Date(record.checked_in_at);
 
               return (
-                <div key={record.id} className="py-3.5 first:pt-0 last:pb-0 space-y-1.5">
+                <div key={record.id} className="py-3.5 first:pt-0 last:pb-0 space-y-1.5 bg-gray-50 rounded-md p-2 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-gray-900">
+                    <span className="font-bold text-sm text-indigo-600">
                       {course?.code ?? 'Session Check-In'}
                     </span>
                     {record.flagged_reason ? (
@@ -48,8 +48,8 @@ export default function AttendanceHistoryList({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-black">
-                    <span>{venue?.name ?? 'Registered Venue'}</span>
+                  <div className="flex items-center justify-between text-sm text-gray-800 font-medium">
+                    <span className="font-semibold">{venue?.name ?? 'Registered Venue'}</span>
                     <span>
                       {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
