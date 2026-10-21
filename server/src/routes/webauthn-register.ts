@@ -134,6 +134,11 @@ webauthnRegisterRouter.post('/', requireStudent, async (req, res) => {
         },
         { onConflict: 'credential_id' },
       );
+      // Also store credential ID on user's profile for quick enrollment checks
+      await serviceClient.from('profiles').upsert(
+        { id: profile.id, webauthn_credential_id: credential.id },
+        { onConflict: 'id' },
+      );
 
       // Clean up challenge
       await serviceClient

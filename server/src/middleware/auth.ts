@@ -10,6 +10,7 @@ export interface AuthContext {
     role: 'student' | 'lecturer';
     full_name: string;
     matric_number: string | null;
+    webauthn_credential_id?: string | null;
   };
   supabase: SupabaseClient;
   serviceClient: SupabaseClient;
@@ -24,7 +25,7 @@ declare global {
   }
 }
 
-const PROFILE_COLUMNS = 'id, role, full_name, matric_number';
+const PROFILE_COLUMNS = 'id, role, full_name, matric_number, webauthn_credential_id';
 
 /**
  * Base auth middleware — validates Supabase JWT and loads profile.
