@@ -4,10 +4,13 @@ import { supabase } from '../../lib/supabase';
 import { ErrorText } from '../../components/ui';
 import StudentLayout from '../../components/StudentLayout';
 import type { AttendanceItem } from '../../types/checkin';
-import { useCheckInPipeline } from '../../hooks/useCheckInPipeline';
+import { useCheckInPipeline, decodeQrPayload } from '../../hooks/useCheckInPipeline';
 import QrScanner from '../../components/checkin/QrScanner';
 import StudentStatsCards from '../../components/checkin/StudentStatsCards';
 import AttendanceHistoryList from '../../components/checkin/AttendanceHistoryList';
+
+/** Used when a scanned token does not carry a usable expiry. */
+const FALLBACK_TOKEN_LIFETIME_MS = 180_000;
 
 export default function CheckInPage() {
   const { profile } = useAuth();
@@ -15,6 +18,8 @@ export default function CheckInPage() {
   // ── Local state for scanned token & countdown ──
   const [qrToken, setQrToken] = useState<string | null>(null);
   const [tokenTimeLeft, setTokenTimeLeft] = useState<number>(180);
+  const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
+  const [tokenLifetime, setTokenLifetime] = useState<number>(FALLBACK_TOKEN_LIFETIME_MS);
 
   // ── Student Stats & Records ──
   const [hasCredential, setHasCredential] = useState<boolean | null>(null);
@@ -26,22 +31,25 @@ export default function CheckInPage() {
     if (!profile) return;
     setLoadingHistory(true);
     try {
-      const { data: cred } = await supabase
-        .from('webauthn_credentials')
-        .select('id, enrolled_at')
-        .eq('student_id', profile.id)
-        .is('revoked_at', null)
-        .maybeSingle();
-      setHasCredential(!!cred);
+      // Both reads are independent, so they are issued together instead of
+      // one waiting for the other.
+      const [credentialResult, recordsResult] = await Promise.all([
+        supabase
+          .from('webauthn_credentials')
+          .select('id, enrolled_at')
+          .eq('student_id', profile.id)
+          .is('revoked_at', null)
+          .maybeSingle(),
+        supabase
+          .from('attendance_records')
+          .select('id, checked_in_at, distance_meters, gps_accuracy_meters, webauthn_verified, flagged_reason, sessions(started_at, courses(code, title), venues(name))')
+          .eq('student_id', profile.id)
+          .order('checked_in_at', { ascending: false })
+          .limit(8),
+      ]);
 
-      const { data: records } = await supabase
-        .from('attendance_records')
-        .select('id, checked_in_at, distance_meters, gps_accuracy_meters, webauthn_verified, flagged_reason, sessions(started_at, courses(code, title), venues(name))')
-        .eq('student_id', profile.id)
-        .order('checked_in_at', { ascending: false })
-        .limit(8);
-
-      setHistory((records as unknown as AttendanceItem[]) ?? []);
+      setHasCredential(!!credentialResult.data);
+      setHistory((recordsResult.data as unknown as AttendanceItem[]) ?? []);
     } catch (err) {
       console.error('Failed to load student data:', err);
     } finally {
@@ -61,6 +69,8 @@ export default function CheckInPage() {
     error,
     setError,
     lastResult,
+    gpsComplete,
+    prepare,
     executeCheckIn,
   } = useCheckInPipeline({
     onSuccess: async () => {
@@ -69,24 +79,24 @@ export default function CheckInPage() {
     },
   });
 
-  // ── Token 180s countdown timer ──
+  // ── Token countdown, driven by the token's own expiry claim ──
   useEffect(() => {
-    if (!qrToken || step === 'success' || step === 'queued') return;
-    setTokenTimeLeft(180);
-    const interval = setInterval(() => {
-      setTokenTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setQrToken(null);
-          setError('Scanned QR code expired (180s limit). Please scan again.');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    if (!qrToken || !tokenExpiresAt || step === 'success' || step === 'queued') return;
+
+    const tick = () => {
+      const remaining = Math.max(0, Math.round((tokenExpiresAt - Date.now()) / 1000));
+      setTokenTimeLeft(remaining);
+      if (remaining === 0) {
+        setQrToken(null);
+        setError('Scanned QR code expired. Please scan again.');
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
 
     return () => clearInterval(interval);
-  }, [qrToken, step, setError]);
+  }, [qrToken, tokenExpiresAt, step, setError]);
 
   // ── Service worker sync message listener ──
   useEffect(() => {
@@ -127,11 +137,30 @@ export default function CheckInPage() {
     };
   }, [loadStudentData, setStatus, setError]);
 
-  function handleScanSuccess(decodedText: string) {
-    setQrToken(decodedText);
-    setStatus('QR Code captured! Ready to verify check-in.');
-    setError(null);
-  }
+  const handleScanSuccess = useCallback(
+    (decodedText: string) => {
+      setQrToken(decodedText);
+
+      // The countdown follows the token's own expiry so that the student is
+      // never told to rescan while the token is still accepted by the server.
+      const payload = decodeQrPayload(decodedText);
+      const exp = payload?.exp;
+      const expiresAt = exp ? exp * 1000 : Date.now() + FALLBACK_TOKEN_LIFETIME_MS;
+      setTokenExpiresAt(expiresAt);
+      setTokenLifetime(Math.max(1, Math.round((expiresAt - Date.now()) / 1000)));
+
+      setStatus('QR Code captured! Ready to verify check-in.');
+      setError(null);
+      // Starts the position fix and the WebAuthn challenge straight away so
+      // that they are already under way when the student confirms.
+      prepare(decodedText);
+    },
+    [prepare, setError, setStatus],
+  );
+
+  const handleScannerReady = useCallback((readyAfterMs: number) => {
+    console.info(`[scanner] camera ready in ${readyAfterMs}ms`);
+  }, []);
 
   // ── Derived stats ──
   const totalAttended = history.length;
@@ -155,7 +184,7 @@ export default function CheckInPage() {
         {/* Left Column: QR Scanner & Check-in Controls */}
         <div className="lg:col-span-3 space-y-6 order-1">
           <div className="rounded-2xl bg-white p-4 sm:p-6 shadow-xs border border-gray-100 space-y-6">
-            <QrScanner onScanSuccess={handleScanSuccess} />
+            <QrScanner onScanSuccess={handleScanSuccess} onScannerReady={handleScannerReady} />
 
             {/* Captured QR Token Banner with Expiry Progress */}
             {qrToken && (
@@ -173,7 +202,7 @@ export default function CheckInPage() {
                 <div className="h-1.5 w-full bg-blue-200/60 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-600 transition-all duration-1000 ease-linear rounded-full"
-                    style={{ width: `${(tokenTimeLeft / 180) * 100}%` }}
+                    style={{ width: `${Math.min(100, (tokenTimeLeft / tokenLifetime) * 100)}%` }}
                   />
                 </div>
 
@@ -197,8 +226,8 @@ export default function CheckInPage() {
                     <span>1. QR Token Scanned &amp; Decoded</span>
                   </div>
 
-                  <div className={`flex items-start gap-2.5 ${step === 'gps' ? 'text-blue-600 font-bold animate-pulse' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
-                    <span className="flex-shrink-0">{step === 'gps' ? '⏳' : step === 'biometric' || step === 'submitting' || step === 'success' || step === 'queued' ? '✓' : '○'}</span>
+                  <div className={`flex items-start gap-2.5 ${step === 'gps' && !gpsComplete ? 'text-blue-600 font-bold animate-pulse' : gpsComplete ? 'text-emerald-700 font-semibold' : 'text-gray-400'}`}>
+                    <span className="flex-shrink-0">{step === 'gps' && !gpsComplete ? '⏳' : gpsComplete ? '✓' : '○'}</span>
                     <span>2. High-Accuracy GPS Fix &amp; Geofence Check</span>
                   </div>
 
@@ -222,6 +251,11 @@ export default function CheckInPage() {
                 <div>
                   <p className="font-bold">{lastResult.flagged ? 'Check-in Recorded with Flags' : 'Check-in Successful!'}</p>
                   <p className="mt-0.5 leading-relaxed font-normal">{lastResult.message}</p>
+                  {lastResult.durationMs != null && (
+                    <p className="mt-0.5 leading-relaxed font-normal text-[11px] opacity-70">
+                      Recorded in {(lastResult.durationMs / 1000).toFixed(1)}s
+                    </p>
+                  )}
                 </div>
               </div>
             )}

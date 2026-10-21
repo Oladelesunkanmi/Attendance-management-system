@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { memo, useEffect, useRef, useState, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 interface QrScannerProps {
   onScanSuccess: (decodedText: string) => void;
+  onScannerReady?: (readyAfterMs: number) => void;
   disabled?: boolean;
 }
 
-export default function QrScanner({ onScanSuccess }: QrScannerProps) {
+function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  // html5-qrcode fires its success callback for every frame that decodes, so
+  // the first hit has to close the gate or one QR code turns into several
+  // check-in attempts.
+  const hasDecodedRef = useRef(false);
   const [isScanning, setIsScanning] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -34,6 +39,9 @@ export default function QrScanner({ onScanSuccess }: QrScannerProps) {
     const element = document.getElementById('qr-reader-viewport');
     if (!element) return;
 
+    const startedAt = performance.now();
+    hasDecodedRef.current = false;
+
     try {
       const qrScanner = new Html5Qrcode('qr-reader-viewport');
       html5QrCodeRef.current = qrScanner;
@@ -46,6 +54,8 @@ export default function QrScanner({ onScanSuccess }: QrScannerProps) {
           aspectRatio: 1.0,
         },
         (decodedText) => {
+          if (hasDecodedRef.current) return;
+          hasDecodedRef.current = true;
           if (navigator.vibrate) {
             navigator.vibrate([40, 50, 40]);
           }
@@ -57,6 +67,7 @@ export default function QrScanner({ onScanSuccess }: QrScannerProps) {
         },
       );
       setIsScanning(true);
+      onScannerReady?.(Math.round(performance.now() - startedAt));
     } catch (err) {
       console.error('Camera start error:', err);
       setCameraError(
@@ -68,10 +79,11 @@ export default function QrScanner({ onScanSuccess }: QrScannerProps) {
       );
       setIsScanning(false);
     }
-  }, [facingMode, onScanSuccess, stopScanner]);
+  }, [facingMode, onScanSuccess, onScannerReady, stopScanner]);
 
   useEffect(() => {
     return () => {
+      hasDecodedRef.current = true;
       stopScanner();
     };
   }, [stopScanner]);
@@ -172,3 +184,5 @@ export default function QrScanner({ onScanSuccess }: QrScannerProps) {
     </div>
   );
 }
+
+export default memo(QrScanner);

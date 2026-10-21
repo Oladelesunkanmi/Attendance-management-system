@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { SignJWT } from 'jose';
 import { requireLecturer } from '../middleware/auth.js';
 
-const TOKEN_TTL_SECONDS = 180;
+// Token lives for 5 minutes (300 seconds) – gives students ample time to scan
+const TOKEN_TTL_SECONDS = 300;
 
 export const issueQrTokenRouter = Router();
 

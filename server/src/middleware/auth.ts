@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { decodeJwt } from 'jose';
 import { createServiceClient, createUserClient } from '../lib/supabase.js';
 
 export interface AuthContext {
@@ -23,6 +24,8 @@ declare global {
   }
 }
 
+const PROFILE_COLUMNS = 'id, role, full_name, matric_number';
+
 /**
  * Base auth middleware — validates Supabase JWT and loads profile.
  */
@@ -36,20 +39,49 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const token = authHeader.replace('Bearer ', '');
   const supabase = createUserClient(token);
 
+  const serviceClient = createServiceClient();
+
+  // The subject is read from the token without verifying it, which lets the
+  // profile lookup run while the token is being validated. The row is only
+  // used once the authoritative user id returned by getUser() matches it, so
+  // an unverified token can never grant access to another account.
+  let subject: string | undefined;
+  try {
+    subject = decodeJwt(token).sub;
+  } catch {
+    subject = undefined;
+  }
+
+  const profilePromise = subject
+    ? serviceClient
+        .from('profiles')
+        .select(PROFILE_COLUMNS)
+        .eq('id', subject)
+        .maybeSingle()
+    : null;
+
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
+    if (profilePromise) await Promise.resolve(profilePromise).catch(() => undefined);
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }
 
-  const serviceClient = createServiceClient();
-  const { data: profile, error: profileError } = await serviceClient
-    .from('profiles')
-    .select('id, role, full_name, matric_number')
-    .eq('id', user.id)
-    .single();
+  let profile: AuthContext['profile'] | null = null;
 
-  if (profileError || !profile) {
+  if (profilePromise && subject === user.id) {
+    const { data } = await profilePromise;
+    profile = data as AuthContext['profile'] | null;
+  } else {
+    const { data } = await serviceClient
+      .from('profiles')
+      .select(PROFILE_COLUMNS)
+      .eq('id', user.id)
+      .single();
+    profile = data as AuthContext['profile'] | null;
+  }
+
+  if (!profile) {
     res.status(403).json({ error: 'Profile not found' });
     return;
   }

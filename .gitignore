@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+
+# Local test artefacts
+tools/test-qr.png
