@@ -9,7 +9,7 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      profiles: {
+      profiles   : {
         Row: {
           id: string;
           matric_number: string | null;
