@@ -54,6 +54,10 @@ function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
           fps: 15,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
+          // A session token is a dense QR; the platform's native detector reads
+          // those far more reliably than the bundled JS decoder, and
+          // html5-qrcode falls back on its own when the API is unavailable.
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         },
         (decodedText) => {
           if (hasDecodedRef.current) return;

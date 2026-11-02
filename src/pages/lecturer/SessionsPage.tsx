@@ -325,7 +325,10 @@ export default function SessionsPage() {
       try {
         const { token } = await callEdgeFunction<{ token: string }>('issue-qr-token', { sessionId: activeSessionId });
         if (cancelled) return;
-        const dataUrl = await QRCode.toDataURL(token, { margin: 1, width: 220 });
+        // A session token is ~230 characters, so at 220px the QR modules end up
+        // under 4 device pixels each and phone cameras struggle to lock on.
+        // Generate well above the display size so the downscale stays crisp.
+        const dataUrl = await QRCode.toDataURL(token, { margin: 2, width: 512 });
         setQrDataUrl(dataUrl);
         setSecondsLeft(QR_INTERVAL_MS / 1000);
         setLastRotated(new Date());
@@ -571,24 +574,24 @@ export default function SessionsPage() {
             {activeSession && qrDataUrl ? (
               <div className="flex flex-col items-center py-2">
                 {/* Circular countdown arc around QR code */}
-                <div className="relative flex items-center justify-center p-2" style={{ width: 240, height: 240 }}>
+                <div className="relative flex items-center justify-center p-2" style={{ width: 324, height: 324 }}>
                   <svg
                     className="absolute inset-0"
-                    width={240}
-                    height={240}
-                    viewBox="0 0 240 240"
+                    width={324}
+                    height={324}
+                    viewBox="0 0 324 324"
                     style={{ transform: 'rotate(-90deg)' }}
                   >
-                    <circle cx={120} cy={120} r={108} fill="none" stroke="#f3f4f6" strokeWidth={6} />
+                    <circle cx={162} cy={162} r={150} fill="none" stroke="#f3f4f6" strokeWidth={6} />
                     <circle
-                      cx={120}
-                      cy={120}
-                      r={108}
+                      cx={162}
+                      cy={162}
+                      r={150}
                       fill="none"
                       stroke="#10b981"
                       strokeWidth={6}
-                      strokeDasharray={2 * Math.PI * 108}
-                      strokeDashoffset={2 * Math.PI * 108 * (1 - secondsLeft / (QR_INTERVAL_MS / 1000))}
+                      strokeDasharray={2 * Math.PI * 150}
+                      strokeDashoffset={2 * Math.PI * 150 * (1 - secondsLeft / (QR_INTERVAL_MS / 1000))}
                       strokeLinecap="round"
                       style={{ transition: 'stroke-dashoffset 1s linear' }}
                     />
@@ -597,7 +600,7 @@ export default function SessionsPage() {
                     src={qrDataUrl}
                     alt="Session QR code"
                     className="rounded-xl bg-white p-3 shadow-inner"
-                    style={{ width: 190, height: 190 }}
+                    style={{ width: 280, height: 280 }}
                   />
                 </div>
 

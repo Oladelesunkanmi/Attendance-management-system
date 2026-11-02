@@ -194,9 +194,15 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
         if (!payload) {
           // Say what was actually scanned: without this the message is the same
           // whether the camera read a URL, a truncated code, or nothing at all.
-          const segments = normalizeQrToken(qrToken).split('.').length;
+          const normalized = normalizeQrToken(qrToken);
+          const segments = normalized.split('.').length;
+          // A token is ~200 characters in 3 segments, so anything short is not
+          // one of ours — showing what was read is how we tell a wrong code
+          // from a misread one. Only reachable when it is not a token, so this
+          // never puts credential material on screen.
+          const preview = normalized.slice(0, 40).replace(/[^\x20-\x7e]/g, '?');
           throw new Error(
-            `Invalid QR code format: Not a valid session QR token. Please make sure you are scanning a valid session QR code. (scanned ${qrToken.length} characters in ${segments} segment${segments === 1 ? '' : 's'})`,
+            `Invalid QR code format: Not a valid session QR token. Please make sure you are scanning a valid session QR code. (scanned ${qrToken.length} characters in ${segments} segment${segments === 1 ? '' : 's'}: "${preview}")`,
           );
         }
 
