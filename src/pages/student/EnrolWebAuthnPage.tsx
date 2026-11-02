@@ -3,6 +3,7 @@ import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from '
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase, callEdgeFunction } from '../../lib/supabase';
+import { notifyCredentialChanged } from '../../hooks/useHasCredential';
 import { ErrorText } from '../../components/ui';
 import StudentLayout from '../../components/StudentLayout';
 
@@ -56,6 +57,8 @@ export default function EnrolWebAuthnPage() {
 
       setStatus('Biometric enrolment complete!');
       setPin('');
+      // Let the layout drop the "Enrol Biometrics" entry point without a reload.
+      notifyCredentialChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enrolment failed');
     } finally {

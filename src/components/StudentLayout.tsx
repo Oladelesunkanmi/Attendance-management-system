@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useHasCredential } from "../hooks/useHasCredential";
 
-const navLinks = [
+type StudentNavLink = { to: string; label: string; hideWhenEnrolled?: boolean };
+
+const navLinks: StudentNavLink[] = [
   { to: "/student/check-in",   label: "Check In" },
   { to: "/student/attendance", label: "Attendance" },
   { to: "/student/courses",    label: "My Courses" },
-  { to: "/student/enrol",      label: "Enrol Biometrics" },
+  { to: "/student/enrol",      label: "Enrol Biometrics", hideWhenEnrolled: true },
 ];
 
 export default function StudentLayout({
@@ -21,6 +24,13 @@ export default function StudentLayout({
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { hasCredential } = useHasCredential();
+
+  // Once an active passkey exists there is nothing left to enrol, so the
+  // enrolment entry point drops out of the navigation.
+  const visibleNavLinks = hasCredential
+    ? navLinks.filter((link) => !link.hideWhenEnrolled)
+    : navLinks;
 
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
@@ -53,7 +63,7 @@ export default function StudentLayout({
 
           {/* Desktop nav links */}
           <nav className="hidden sm:flex items-center gap-1 flex-1 justify-center">
-            {navLinks.map((link) => (
+            {visibleNavLinks.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
@@ -130,7 +140,7 @@ export default function StudentLayout({
             </div>
 
             {/* Nav links */}
-            {navLinks.map((link) => (
+            {visibleNavLinks.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
