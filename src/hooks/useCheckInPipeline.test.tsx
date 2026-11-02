@@ -102,7 +102,6 @@ function verifyCalls() {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getStablePosition.mockResolvedValue(GPS_FIX);
-  mocks.isLocationPermissionGranted.mockResolvedValue(true);
   mocks.startAuthentication.mockResolvedValue({ id: 'credential-1' });
   mocks.queueCheckIn.mockResolvedValue(undefined);
   mocks.callApi.mockImplementation(async (name: string) => {
