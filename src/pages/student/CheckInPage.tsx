@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { ErrorText } from '../../components/ui';
 import StudentLayout from '../../components/StudentLayout';
 import type { AttendanceItem } from '../../types/checkin';
-import { useCheckInPipeline, decodeQrPayload } from '../../hooks/useCheckInPipeline';
+import { useCheckInPipeline, decodeQrPayload, normalizeQrToken } from '../../hooks/useCheckInPipeline';
 import { useHasCredential } from '../../hooks/useHasCredential';
 import QrScanner from '../../components/checkin/QrScanner';
 import StudentStatsCards from '../../components/checkin/StudentStatsCards';
@@ -131,11 +131,16 @@ export default function CheckInPage() {
 
   const handleScanSuccess = useCallback(
     (decodedText: string) => {
-      setQrToken(decodedText);
+      // Normalise first: the camera can return a URL or a label around the
+      // token, and every later step — the countdown, the prepared WebAuthn
+      // challenge, the submitted body — has to agree on the exact string the
+      // server will verify.
+      const token = normalizeQrToken(decodedText);
+      setQrToken(token);
 
       // The countdown follows the token's own expiry so that the student is
       // never told to rescan while the token is still accepted by the server.
-      const payload = decodeQrPayload(decodedText);
+      const payload = decodeQrPayload(token);
       const exp = payload?.exp;
       const expiresAt = exp ? exp * 1000 : Date.now() + FALLBACK_TOKEN_LIFETIME_MS;
       setTokenExpiresAt(expiresAt);
@@ -145,7 +150,7 @@ export default function CheckInPage() {
       setError(null);
       // Starts the position fix and the WebAuthn challenge straight away so
       // that they are already under way when the student confirms.
-      prepare(decodedText);
+      prepare(token);
     },
     [prepare, setError, setStatus],
   );

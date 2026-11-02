@@ -53,9 +53,22 @@ const OPTIONS_MAX_AGE_MS = 90_000;
  * only used to decide which verification stages have to run. The server
  * validates the token signature independently.
  */
+/**
+ * Recovers the token from whatever the camera returned. Some scanners hand
+ * back the surrounding text as well — a URL with the token in a query string,
+ * a label printed beside the code, stray whitespace — and a token that is
+ * otherwise perfectly good then fails as "not a valid QR token".
+ */
+export function normalizeQrToken(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.split('.').length === 3) return trimmed;
+  const embedded = /[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/.exec(trimmed);
+  return embedded ? embedded[0] : trimmed;
+}
+
 export function decodeQrPayload(qrToken: string): QrPayload | null {
   try {
-    const parts = qrToken.split('.');
+    const parts = normalizeQrToken(qrToken).split('.');
     if (parts.length !== 3) {
       throw new Error('Not a valid session QR token.');
     }
@@ -179,8 +192,11 @@ export function useCheckInPipeline({ onSuccess }: UseCheckInPipelineProps) {
 
         const payload = decodeQrPayload(qrToken);
         if (!payload) {
+          // Say what was actually scanned: without this the message is the same
+          // whether the camera read a URL, a truncated code, or nothing at all.
+          const segments = normalizeQrToken(qrToken).split('.').length;
           throw new Error(
-            'Invalid QR code format: Not a valid session QR token. Please make sure you are scanning a valid session QR code.',
+            `Invalid QR code format: Not a valid session QR token. Please make sure you are scanning a valid session QR code. (scanned ${qrToken.length} characters in ${segments} segment${segments === 1 ? '' : 's'})`,
           );
         }
 
