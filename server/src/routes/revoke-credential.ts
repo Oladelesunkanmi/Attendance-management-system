@@ -87,6 +87,17 @@ revokeCredentialRouter.post('/', requireLecturer, async (req, res) => {
         return;
       }
 
+      // Keep the profile marker in step with the credential table so a quick
+      // check on profiles cannot disagree with the authoritative rows.
+      const { error: markerError } = await serviceClient
+        .from('profiles')
+        .update({ webauthn_credential_id: null })
+        .eq('id', studentId);
+
+      if (markerError) {
+        console.error('[revoke-credential] Failed to clear profile marker:', markerError);
+      }
+
       res.json({ revoked: true });
       return;
     }

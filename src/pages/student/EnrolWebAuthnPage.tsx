@@ -1,32 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { startRegistration, type PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, callEdgeFunction } from '../../lib/supabase';
-import { notifyCredentialChanged } from '../../hooks/useHasCredential';
+import { callEdgeFunction } from '../../lib/supabase';
+import { useHasCredential, notifyCredentialChanged } from '../../hooks/useHasCredential';
 import { ErrorText } from '../../components/ui';
 import StudentLayout from '../../components/StudentLayout';
 
 export default function EnrolWebAuthnPage() {
   const { profile } = useAuth();
+  const { hasCredential, refresh: refreshCredential } = useHasCredential();
   const [pin, setPin] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [hasCredential, setHasCredential] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (!profile) return;
-    supabase
-      .from('webauthn_credentials')
-      .select('id')
-      .eq('student_id', profile.id)
-      .is('revoked_at', null)
-      .limit(1)
-      .then(({ data }) => {
-        setHasCredential((data?.length ?? 0) > 0);
-      });
-  }, [profile]);
 
   async function handleEnrol() {
     if (!profile) return;
@@ -57,7 +44,9 @@ export default function EnrolWebAuthnPage() {
 
       setStatus('Biometric enrolment complete!');
       setPin('');
-      // Let the layout drop the "Enrol Biometrics" entry point without a reload.
+      // Re-read the status so this page switches to the enrolled state, and
+      // tell the layout to drop the "Enrol Biometrics" entry point.
+      await refreshCredential();
       notifyCredentialChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Enrolment failed');

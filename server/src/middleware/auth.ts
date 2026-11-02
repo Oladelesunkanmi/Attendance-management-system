@@ -63,13 +63,6 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   // Start fetching user and profile concurrently
   const getUserPromise = supabase.auth.getUser();
-  const profilePromise = subject
-    ? serviceClient
-        .from('profiles')
-        .select(PROFILE_COLUMNS)
-        .eq('id', subject)
-        .maybeSingle()
-    : null;
 
   const [{ data: { user }, error }] = await Promise.all([getUserPromise]);
   if (error || !user) {

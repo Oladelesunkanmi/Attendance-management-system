@@ -103,6 +103,19 @@ Deno.serve(async (req) => {
         { onConflict: 'credential_id' },
       );
 
+      // Mirror the credential id onto the profile so anything reading profiles
+      // can see the student is enrolled without a join. webauthn_credentials
+      // stays the source of truth, so a failure here must not fail the
+      // registration the student just completed.
+      const { error: markerError } = await serviceClient
+        .from('profiles')
+        .update({ webauthn_credential_id: credential.id })
+        .eq('id', profile.id);
+
+      if (markerError) {
+        console.error('[webauthn-register] profile marker update failed:', markerError);
+      }
+
       // Clean up challenge
       await serviceClient
         .from('webauthn_challenges')

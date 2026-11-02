@@ -5,6 +5,7 @@ import { ErrorText } from '../../components/ui';
 import StudentLayout from '../../components/StudentLayout';
 import type { AttendanceItem } from '../../types/checkin';
 import { useCheckInPipeline, decodeQrPayload } from '../../hooks/useCheckInPipeline';
+import { useHasCredential } from '../../hooks/useHasCredential';
 import QrScanner from '../../components/checkin/QrScanner';
 import StudentStatsCards from '../../components/checkin/StudentStatsCards';
 import AttendanceHistoryList from '../../components/checkin/AttendanceHistoryList';
@@ -22,34 +23,25 @@ export default function CheckInPage() {
   const [tokenLifetime, setTokenLifetime] = useState<number>(FALLBACK_TOKEN_LIFETIME_MS);
 
   // ── Student Stats & Records ──
-  const [hasCredential, setHasCredential] = useState<boolean | null>(null);
+  // Credential status comes from the API (the credential table is closed to
+  // the browser by RLS); attendance records are still read directly.
+  const { hasCredential } = useHasCredential();
   const [history, setHistory] = useState<AttendanceItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // ── Load student credential status and recent attendance ──
+  // ── Load recent attendance ──
   const loadStudentData = useCallback(async () => {
     if (!profile) return;
     setLoadingHistory(true);
     try {
-      // Both reads are independent, so they are issued together instead of
-      // one waiting for the other.
-      const [credentialResult, recordsResult] = await Promise.all([
-        supabase
-          .from('webauthn_credentials')
-          .select('id, enrolled_at')
-          .eq('student_id', profile.id)
-          .is('revoked_at', null)
-          .maybeSingle(),
-        supabase
-          .from('attendance_records')
-          .select('id, checked_in_at, distance_meters, gps_accuracy_meters, webauthn_verified, flagged_reason, sessions(started_at, courses(code, title), venues(name))')
-          .eq('student_id', profile.id)
-          .order('checked_in_at', { ascending: false })
-          .limit(8),
-      ]);
+      const { data: records } = await supabase
+        .from('attendance_records')
+        .select('id, checked_in_at, distance_meters, gps_accuracy_meters, webauthn_verified, flagged_reason, sessions(started_at, courses(code, title), venues(name))')
+        .eq('student_id', profile.id)
+        .order('checked_in_at', { ascending: false })
+        .limit(8);
 
-      setHasCredential(!!credentialResult.data);
-      setHistory((recordsResult.data as unknown as AttendanceItem[]) ?? []);
+      setHistory((records as unknown as AttendanceItem[]) ?? []);
     } catch (err) {
       console.error('Failed to load student data:', err);
     } finally {

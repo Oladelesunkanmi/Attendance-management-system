@@ -9,6 +9,7 @@ import { enrolCourseRouter } from './routes/enrol-course.js';
 import { issueQrTokenRouter } from './routes/issue-qr-token.js';
 import { issueEnrolPinRouter } from './routes/issue-enrol-pin.js';
 import { revokeCredentialRouter } from './routes/revoke-credential.js';
+import { enrolmentStatusRouter } from './routes/enrolment-status.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -53,6 +54,7 @@ app.use('/api/enrol-course', enrolCourseRouter);
 app.use('/api/issue-qr-token', issueQrTokenRouter);
 app.use('/api/issue-enrol-pin', issueEnrolPinRouter);
 app.use('/api/revoke-credential', revokeCredentialRouter);
+app.use('/api/enrolment-status', enrolmentStatusRouter);
 
 // ── Global error handler ─────────────────────────────────────────────────────
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

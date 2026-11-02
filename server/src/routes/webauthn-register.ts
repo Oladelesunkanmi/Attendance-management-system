@@ -134,11 +134,19 @@ webauthnRegisterRouter.post('/', requireStudent, async (req, res) => {
         },
         { onConflict: 'credential_id' },
       );
-      // Also store credential ID on user's profile for quick enrollment checks
-      await serviceClient.from('profiles').upsert(
-        { id: profile.id, webauthn_credential_id: credential.id },
-        { onConflict: 'id' },
-      );
+      // Also store credential ID on user's profile for quick enrollment checks.
+      // update rather than upsert: an upsert with only these columns would
+      // create a profile row with no role or name if the row were ever missing.
+      const { error: markerError } = await serviceClient
+        .from('profiles')
+        .update({ webauthn_credential_id: credential.id })
+        .eq('id', profile.id);
+
+      if (markerError) {
+        // The credential row is committed and is the source of truth, so this
+        // does not fail the registration — but it must not pass silently.
+        console.error('[webauthn-register] profile marker update failed:', markerError);
+      }
 
       // Clean up challenge
       await serviceClient
