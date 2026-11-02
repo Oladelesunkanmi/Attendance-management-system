@@ -106,6 +106,18 @@ The migrations are applied in timestamp order:
 
 If you already ran any of these SQL files manually in the Supabase Dashboard, **do not immediately run `supabase db push`**. The CLI tracks applied migrations separately from the database schema; reconcile the remote migration history with the SQL already applied first, or the CLI may attempt to create existing objects again. Back up existing data and verify the linked project and pending migration list before applying changes. Never delete or recreate tables to clear a migration error.
 
+If `supabase db push` tries to replay migrations whose objects already exist (for example `ERROR: relation "profiles" already exists`), the fix is to record the existing ones in the CLI's history rather than to run them again:
+
+```bash
+supabase migration list --linked
+```
+
+```bash
+supabase migration repair --status applied 20260101000000 20260101000001 20260101000002 20260814000001 20261021000000
+```
+
+Then `supabase db push` applies only the genuinely new migrations. `repair` does not check the schema, so confirm the objects those files create really do exist first.
+
 For a manual Dashboard setup instead, open **SQL Editor → New query**, then paste and run the seven files above individually in the listed order. Confirm each succeeds before continuing. In **Table Editor**, verify the tables were created, including `profiles`, `courses`, `enrollments`, `venues`, `sessions`, `attendance_records`, `webauthn_credentials`, `webauthn_challenges`, and `enrolment_pins`.
 
 For future schema changes, add a timestamped `.sql` migration under `supabase/migrations/`, then review it with `supabase db push --dry-run` before applying it. Keep a single copy of each migration in this directory.
