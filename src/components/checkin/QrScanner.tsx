@@ -45,7 +45,14 @@ function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
     hasDecodedRef.current = false;
 
     try {
-      const qrScanner = new Html5Qrcode('qr-reader-viewport');
+      // A session token is a dense QR; the platform's native detector reads
+      // those far more reliably than the bundled JS decoder. This belongs to
+      // the constructor's config, not to start()'s camera scan config, and
+      // html5-qrcode falls back to its own decoder when the API is absent.
+      const qrScanner = new Html5Qrcode('qr-reader-viewport', {
+        verbose: false,
+        useBarCodeDetectorIfSupported: true,
+      });
       html5QrCodeRef.current = qrScanner;
 
       await qrScanner.start(
@@ -54,10 +61,6 @@ function QrScanner({ onScanSuccess, onScannerReady }: QrScannerProps) {
           fps: 15,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
-          // A session token is a dense QR; the platform's native detector reads
-          // those far more reliably than the bundled JS decoder, and
-          // html5-qrcode falls back on its own when the API is unavailable.
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         },
         (decodedText) => {
           if (hasDecodedRef.current) return;
