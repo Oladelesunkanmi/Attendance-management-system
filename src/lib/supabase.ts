@@ -13,7 +13,10 @@ export const supabase = createClient<Database>(
   supabaseAnonKey ?? 'placeholder',
 );
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+// VITE_API_URL is configured per environment and may carry a trailing slash.
+// Without this trim, `${API_URL}/api/x` becomes `//api/x` and the Express
+// router answers 404 for a path that plainly exists.
+const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
 
 /**
  * Call the Express API backend (replaces Supabase Edge Function invocation).
@@ -34,10 +37,23 @@ export async function callApi<T>(
     body: JSON.stringify(body),
   });
 
-  const json = await res.json();
+  // A wrong host or path answers with HTML, so parse defensively: letting
+  // JSON.parse throw on "<!DOCTYPE" hides the status code that explains it.
+  const text = await res.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(
+      res.ok
+        ? `API "${name}" returned a non-JSON response`
+        : `API "${name}" failed (${res.status}) at ${API_URL}/api/${name}`,
+    );
+  }
 
   if (!res.ok) {
-    throw new Error(json?.error || `API "${name}" failed (${res.status})`);
+    const message = (json as { error?: string } | null)?.error;
+    throw new Error(message || `API "${name}" failed (${res.status})`);
   }
 
   return json as T;

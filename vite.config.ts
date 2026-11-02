@@ -12,7 +12,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
+      includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Attendance System',
         short_name: 'Attendance',
@@ -23,8 +23,8 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'vite.svg',
-            sizes: '192x192',
+            src: 'favicon.svg',
+            sizes: 'any',
             type: 'image/svg+xml',
           },
         ],
